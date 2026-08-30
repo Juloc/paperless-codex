@@ -1,0 +1,39 @@
+services:
+  paperless-codex:
+    image: ghcr.io/juloc/paperless-codex:${PAPERLESS_CODEX_VERSION:-0.1.0}
+    restart: unless-stopped
+    depends_on:
+      - webserver
+    environment:
+      PAPERLESS_URL: http://webserver:8000
+      PAPERLESS_TOKEN: ${PAPERLESS_CODEX_TOKEN:?PAPERLESS_CODEX_TOKEN is required}
+      BRIDGE_KEY: ${PAPERLESS_CODEX_BRIDGE_KEY:?PAPERLESS_CODEX_BRIDGE_KEY is required}
+      CODEX_HOME: /data/codex
+      CODEX_WORKDIR: /tmp/paperless-codex
+      STATE_DIR: /data/state
+      MAX_DOCUMENT_BYTES: 52428800
+      MAX_PAGES: 20
+      PDF_DPI: 150
+      MIN_CONFIDENCE: 0.55
+      WRITE_CONTENT: "true"
+      CREATE_MISSING_METADATA: "true"
+    volumes:
+      - paperless_codex_data:/data/codex
+      - paperless_codex_state:/data/state
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=1g,mode=1777
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - paperlessnet
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8080/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  paperless_codex_data:
+  paperless_codex_state:
