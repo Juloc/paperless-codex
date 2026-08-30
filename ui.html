@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="de" data-theme="auto">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="theme-color" content="#17541f" />
+  <title>Paperless Codex</title>
+  <style>
+    :root{--primary:#17541f;--primary2:#23752e;--bg:#f5f6f7;--panel:#fff;--text:#20252a;--muted:#6b747c;--line:#dfe3e6;--ok:#198754;--warn:#b7791f;--bad:#b02a37;--shadow:0 1px 2px rgba(0,0,0,.06)}
+    @media(prefers-color-scheme:dark){:root{--bg:#171a1d;--panel:#212529;--text:#f0f2f3;--muted:#a9b0b6;--line:#353b40;--shadow:none}}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Roboto,system-ui,-apple-system,"Segoe UI",sans-serif}
+    header{height:58px;background:var(--primary);color:#fff;display:flex;align-items:center;box-shadow:0 1px 2px rgba(0,0,0,.18)}
+    .bar{width:min(1120px,calc(100% - 32px));margin:auto;display:flex;align-items:center;gap:12px}.brand{font-size:18px;font-weight:600;letter-spacing:.1px}.sub{opacity:.78;font-size:12px}
+    main{width:min(1120px,calc(100% - 32px));margin:28px auto 56px}.title{font-size:24px;font-weight:500;margin:0 0 4px}.lead{margin:0 0 24px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.card{background:var(--panel);border:1px solid var(--line);border-radius:5px;box-shadow:var(--shadow)}.card.full{grid-column:1/-1}
+    .card-h{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}.card-h h2{font-size:15px;margin:0;font-weight:600}.card-b{padding:16px}
+    .status{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;padding:4px 9px;font-size:12px;color:var(--muted)}.dot{width:8px;height:8px;border-radius:50%;background:#889198}.status.ok .dot{background:var(--ok)}.status.bad .dot{background:var(--bad)}.status.wait .dot{background:var(--warn)}
+    .row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:9px 0}.row+.row{border-top:1px solid var(--line)}.label{font-weight:500}.value{color:var(--muted);text-align:right;overflow-wrap:anywhere}
+    button,.button{appearance:none;border:1px solid transparent;border-radius:4px;padding:8px 12px;font:inherit;font-weight:500;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:7px}.primary{background:var(--primary);color:#fff}.primary:hover{background:var(--primary2)}.secondary{background:transparent;border-color:var(--line);color:var(--text)}.secondary:hover{background:rgba(128,128,128,.08)}button:disabled{opacity:.55;cursor:not-allowed}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.login{display:none;margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:4px;background:rgba(128,128,128,.05)}.login.show{display:block}.code{font:600 22px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:2px;margin:8px 0 12px}.hint{font-size:12px;color:var(--muted)}
+    .metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.metric{border:1px solid var(--line);border-radius:4px;padding:12px}.metric strong{display:block;font-size:20px;font-weight:500}.metric span{color:var(--muted);font-size:12px}.empty{color:var(--muted);padding:8px 0}
+    table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line)}th{font-size:12px;color:var(--muted);font-weight:500}td:last-child,th:last-child{text-align:right}
+    @media(max-width:760px){.grid{grid-template-columns:1fr}.card.full{grid-column:auto}.metrics{grid-template-columns:repeat(2,1fr)}.row{align-items:flex-start;flex-direction:column}.value{text-align:left}}
+  </style>
+</head>
+<body>
+<header><div class="bar"><div><div class="brand">Paperless Codex</div><div class="sub">Dokumenten-Analyse</div></div></div></header>
+<main>
+  <h1 class="title">Codex-Verbindung</h1><p class="lead">ChatGPT-Anmeldung und Status der Paperless-Integration.</p>
+  <div class="grid">
+    <section class="card"><div class="card-h"><h2>ChatGPT / Codex</h2><span id="codexBadge" class="status"><span class="dot"></span><span>Prüfe…</span></span></div><div class="card-b">
+      <div class="row"><span class="label">Verbindung</span><span id="codexText" class="value">–</span></div>
+      <div class="row"><span class="label">Codex-Version</span><span id="codexVersion" class="value">–</span></div>
+      <div class="actions"><button id="loginBtn" class="primary">Mit ChatGPT anmelden</button><button id="logoutBtn" class="secondary">Abmelden</button></div>
+      <div id="loginBox" class="login"><div class="label">Geräteanmeldung</div><div class="hint">Öffne die Anmeldeseite und gib diesen Code ein:</div><div id="deviceCode" class="code">–</div><div class="actions"><a id="verifyLink" class="button primary" target="_blank" rel="noopener">Anmeldeseite öffnen</a><button id="copyBtn" class="secondary">Code kopieren</button></div><div id="loginState" class="hint" style="margin-top:10px">Warte auf Anmeldung…</div></div>
+    </div></section>
+    <section class="card"><div class="card-h"><h2>Paperless</h2><span id="paperlessBadge" class="status"><span class="dot"></span><span>Prüfe…</span></span></div><div class="card-b">
+      <div class="row"><span class="label">API</span><span id="paperlessText" class="value">–</span></div>
+      <div class="row"><span class="label">Queue</span><span id="queueText" class="value">–</span></div>
+      <div class="actions"><button id="refreshBtn" class="secondary">Status aktualisieren</button></div>
+    </div></section>
+    <section class="card full"><div class="card-h"><h2>Erkannte Paperless-Struktur</h2></div><div class="card-b"><div class="metrics">
+      <div class="metric"><strong id="mCorr">–</strong><span>Korrespondenten</span></div><div class="metric"><strong id="mTypes">–</strong><span>Dokumenttypen</span></div><div class="metric"><strong id="mTags">–</strong><span>Tags</span></div><div class="metric"><strong id="mPaths">–</strong><span>Storage Paths</span></div><div class="metric"><strong id="mFields">–</strong><span>Custom Fields</span></div>
+    </div></div></section>
+    <section class="card full"><div class="card-h"><h2>Letzte Scan-Jobs</h2><span id="jobBadge" class="status"><span class="dot"></span><span>0 aktiv</span></span></div><div class="card-b"><div id="jobsEmpty" class="empty">Noch keine Jobs in dieser Laufzeit.</div><table id="jobsTable" hidden><thead><tr><th>Dokument</th><th>Status</th><th>Beendet</th></tr></thead><tbody></tbody></table></div></section>
+  </div>
+</main>
+<script>
+const $=id=>document.getElementById(id); let loginId=null, poll=null;
+async function api(path,options={}){const r=await fetch('/ui-api'+path,{...options,headers:{'content-type':'application/json',...(options.headers||{})}});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j}
+function badge(el,state,text){el.className='status '+state;el.querySelector('span:last-child').textContent=text}
+async function refresh(){try{const s=await api('/status');const c=s.codex||{};badge($('codexBadge'),c.connected?'ok':'bad',c.connected?'Verbunden':'Nicht verbunden');$('codexText').textContent=c.statusText|| (c.connected?'Angemeldet':'Nicht angemeldet');$('codexVersion').textContent=c.codexVersion||'–';badge($('paperlessBadge'),s.paperless?.connected?'ok':'bad',s.paperless?.connected?'Verbunden':'Fehler');$('paperlessText').textContent=s.paperless?.connected?'API erreichbar':(s.paperless?.error||'Nicht erreichbar');$('queueText').textContent=(s.queued??0)+(s.active?' · Verarbeitung läuft':'');$('logoutBtn').disabled=!c.connected}catch(e){badge($('codexBadge'),'bad','Fehler');badge($('paperlessBadge'),'bad','Fehler');$('paperlessText').textContent=e.message}
+  try{const m=await api('/metadata');$('mCorr').textContent=m.correspondents?.length??0;$('mTypes').textContent=m.documentTypes?.length??0;$('mTags').textContent=m.tags?.length??0;$('mPaths').textContent=m.storagePaths?.length??0;$('mFields').textContent=m.customFields?.length??0}catch{}
+  try{const j=await api('/jobs');const rows=(j.jobs||[]).slice().reverse().slice(0,10);$('jobsEmpty').hidden=rows.length>0;$('jobsTable').hidden=!rows.length;const tb=$('jobsTable').querySelector('tbody');tb.innerHTML='';for(const x of rows){const tr=document.createElement('tr');for(const v of [x.documentId,x.status,x.finishedAt?new Date(x.finishedAt).toLocaleString():'–']){const td=document.createElement('td');td.textContent=v??'–';tr.appendChild(td)}tb.appendChild(tr)}badge($('jobBadge'),j.queue?.length?'wait':'ok',(j.queue?.length||0)+' in Queue')}catch{}
+}
+async function startLogin(){try{$('loginBtn').disabled=true;const s=await api('/auth/start',{method:'POST',body:'{}'});loginId=s.id;$('loginBox').classList.add('show');$('deviceCode').textContent=s.userCode||'…';$('verifyLink').href=s.verificationUrl||'#';$('loginState').textContent='Warte auf Anmeldung…';if(poll)clearInterval(poll);poll=setInterval(checkLogin,1500)}catch(e){$('loginState').textContent=e.message;$('loginBox').classList.add('show')}finally{$('loginBtn').disabled=false}}
+async function checkLogin(){if(!loginId)return;try{const s=await api('/auth/'+loginId);if(s.userCode)$('deviceCode').textContent=s.userCode;if(s.verificationUrl)$('verifyLink').href=s.verificationUrl;if(s.status==='connected'){clearInterval(poll);poll=null;$('loginState').textContent='Anmeldung erfolgreich.';await refresh()}else if(s.status==='error'){clearInterval(poll);poll=null;$('loginState').textContent=s.error||'Anmeldung fehlgeschlagen.'}}catch(e){$('loginState').textContent=e.message}}
+$('loginBtn').onclick=startLogin;$('refreshBtn').onclick=refresh;$('copyBtn').onclick=()=>navigator.clipboard.writeText($('deviceCode').textContent);$('logoutBtn').onclick=async()=>{if(!confirm('Codex wirklich abmelden?'))return;try{await api('/logout',{method:'POST',body:'{}'});$('loginBox').classList.remove('show');await refresh()}catch(e){alert(e.message)}};
+refresh();setInterval(refresh,10000);
+</script>
+</body></html>
