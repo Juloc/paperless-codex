@@ -1,51 +1,91 @@
 # paperless-codex
 
-Sidecar service for Paperless-ngx that classifies newly added documents with Codex using a ChatGPT account session.
+Codex vision sidecar for Paperless-ngx. It downloads the actual document file from Paperless, renders PDFs to page images and lets Codex scan the pages directly. Paperless OCR text is not used as the AI input.
 
 ## Flow
 
-1. Paperless-ngx consumes and OCRs a document.
-2. A Paperless workflow (`Document Added`) sends a webhook with `{{doc_id}}`.
-3. `paperless-codex` stores the document id in a persistent SQLite queue and returns immediately.
-4. A worker fetches the document text and the existing Paperless taxonomy via REST.
-5. Codex returns structured JSON for title, created date, correspondent, document type, tags, storage path and optional custom fields.
-6. The sidecar validates the result and PATCHes only the selected metadata back to Paperless.
+```text
+Paperless document added
+        ↓
+Workflow webhook with {{doc_id}}
+        ↓
+paperless-codex persistent queue
+        ↓
+GET original file from Paperless API
+        ↓
+PDF → page PNGs with Poppler
+(image files stay images)
+        ↓
+Codex CLI --image ...
+ChatGPT device-code login
+        ↓
+Structured JSON
+        ↓
+PATCH Paperless document
+```
 
-## Why a sidecar
+Codex extracts:
 
-Paperless remains unmodified and upgradeable. The sidecar can be stopped without affecting document ingestion. Slow Codex requests do not block the Paperless consumption process.
+- searchable full document text
+- title
+- document date
+- correspondent
+- document type
+- tags
+- storage path (existing paths only)
+- language, short summary, confidence and warnings
+
+Existing Paperless correspondents, document types, tags and storage paths are sent to Codex so it can reuse the existing taxonomy. Missing correspondents/document types/tags may be created automatically when `CREATE_MISSING_METADATA=true`.
+
+## PDF handling
+
+The service first downloads `/api/documents/{id}/download/?original=true`. If the original type is not directly scannable, it falls back to Paperless' archived PDF.
+
+PDF pages are rendered with `pdftoppm` and passed directly to Codex as images. Default limits:
+
+- 50 MB document
+- first 20 pages
+- 150 DPI
+
+These limits are configurable.
 
 ## Authentication
 
-The service uses the official `openai-codex` Python SDK. Codex can authenticate with a ChatGPT-managed session. For a headless Docker host the service exposes a device-code login flow. The Codex home directory is persisted in a Docker volume so the session survives container restarts.
+The container installs the official `@openai/codex` CLI and persists `CODEX_HOME` in `/data/codex`.
 
-After deployment:
+Start ChatGPT device login:
 
 ```bash
-curl -X POST http://localhost:8484/api/auth/device/start
+curl -X POST \
+  -H "X-Paperless-Codex-Key: $BRIDGE_KEY" \
+  http://localhost:8484/auth/start
 ```
 
-Open the returned `verification_url`, enter the `user_code`, then poll:
+Open the returned `verificationUrl`, enter `userCode`, then query the returned session id:
 
 ```bash
-curl http://localhost:8484/api/auth/device/<login_id>
+curl \
+  -H "X-Paperless-Codex-Key: $BRIDGE_KEY" \
+  http://localhost:8484/auth/<session-id>
 ```
 
-Check account state:
+Status:
 
 ```bash
-curl http://localhost:8484/api/auth/status
+curl \
+  -H "X-Paperless-Codex-Key: $BRIDGE_KEY" \
+  http://localhost:8484/status
 ```
 
 ## Paperless workflow
 
-Create a workflow in Paperless:
+Create a workflow:
 
 - Trigger: `Document Added`
 - Action: `Webhook`
-- URL: `http://paperless-codex:8484/webhook/paperless`
-- Method/body encoding: JSON
-- Header: `X-Paperless-Codex-Secret: <same secret as PAPERLESS_CODEX_WEBHOOK_SECRET>`
+- URL: `http://paperless-codex:8080/webhook/paperless`
+- Encoding: JSON
+- Header: `X-Paperless-Codex-Key` = same value as `BRIDGE_KEY`
 - Body:
 
 ```json
@@ -54,7 +94,7 @@ Create a workflow in Paperless:
 }
 ```
 
-The existing Paperless Docker network must be shared with this service.
+Paperless 3.x supports workflow webhooks and `{{doc_id}}`. The sidecar responds `202` immediately and processes the document in its own queue.
 
 ## Environment
 
@@ -62,30 +102,41 @@ See `.env.example`.
 
 Required:
 
-- `PAPERLESS_URL` – internal Paperless URL, normally `http://webserver:8000`
-- `PAPERLESS_TOKEN` – Paperless API token
-- `PAPERLESS_CODEX_WEBHOOK_SECRET` – random shared webhook secret
+- `PAPERLESS_URL=http://webserver:8000`
+- `PAPERLESS_TOKEN=<Paperless API token>`
+- `BRIDGE_KEY=<random internal secret>`
 
-Recommended defaults:
+Optional:
 
-- existing taxonomy is preferred; missing correspondents/types/tags are not created automatically
-- storage paths are never created automatically
-- existing metadata is kept unless `PAPERLESS_CODEX_OVERWRITE=true`
+- `MAX_DOCUMENT_BYTES=52428800`
+- `MAX_PAGES=20`
+- `PDF_DPI=150`
+- `CODEX_TIMEOUT_MS=360000`
+- `CODEX_MODEL=`
+- `MIN_CONFIDENCE=0.55`
+- `WRITE_CONTENT=true`
+- `CREATE_MISSING_METADATA=true`
 
 ## API
 
 - `GET /health`
-- `GET /api/auth/status`
-- `POST /api/auth/device/start`
-- `GET /api/auth/device/{login_id}`
+- `GET /status`
+- `POST /auth/start`
+- `GET /auth/{sessionId}`
 - `POST /webhook/paperless`
-- `POST /api/documents/{document_id}/enqueue`
-- `GET /api/jobs`
+- `POST /documents/{documentId}/scan`
+- `GET /jobs`
+
+All endpoints except `/health` require `X-Paperless-Codex-Key`.
 
 ## Security
 
-Do not expose port `8484` publicly. Keep the service on the Paperless Docker network or behind an authenticated reverse proxy. Never commit the Paperless token or Codex credential directory.
+- Codex is wrapped with `--disable shell_tool`.
+- Scans run with Codex sandbox `read-only`.
+- The service needs only a Paperless API token and its own bridge key.
+- Do not expose the service directly to the internet.
+- The Docker container can run read-only with `/tmp` as tmpfs and `/data/codex` + `/data/state` persisted.
 
-## Status
+## Queue
 
-Initial MVP. The first target is reliable text-based classification using Paperless OCR. Vision fallback for low-quality OCR can be added without changing the Paperless integration.
+Queued document IDs are stored under `/data/state/queue.json`. The current document remains in that queue until processing finishes, so a container restart can resume it.
