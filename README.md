@@ -21,6 +21,8 @@ ChatGPT device-code login
         ↓
 Structured JSON
         ↓
+Reuse existing Paperless taxonomy + fill matching custom fields
+        ↓
 PATCH Paperless document
 ```
 
@@ -29,13 +31,46 @@ Codex extracts:
 - searchable full document text
 - title
 - document date
-- correspondent
+- correspondent / sender
+- recipient
 - document type
 - tags
 - storage path (existing paths only)
+- matching existing custom fields and their values
 - language, short summary, confidence and warnings
 
-Existing Paperless correspondents, document types, tags and storage paths are sent to Codex so it can reuse the existing taxonomy. Missing correspondents/document types/tags may be created automatically when `CREATE_MISSING_METADATA=true`.
+## Existing metadata first
+
+Before every scan the sidecar loads the current Paperless taxonomy and passes object IDs and names to Codex:
+
+- correspondents
+- document types
+- tags
+- storage paths
+- custom fields
+
+Codex is instructed to select an existing ID whenever it is semantically appropriate instead of proposing a slightly different name. The sidecar then performs another normalized similarity check before creating anything. For example `BKK Firmus`, `BKK firmus` or small punctuation/case variants should resolve to the same existing object.
+
+`EXISTING_MATCH_THRESHOLD` controls the second-stage similarity guard. Missing correspondents, document types and tags may still be created when `CREATE_MISSING_METADATA=true`. Storage paths are never created automatically.
+
+## Custom fields
+
+The service loads `/api/custom_fields/` before every scan, including each field's ID, name, data type and select options. Codex may only fill fields that already exist in Paperless; it never creates new custom fields.
+
+Supported automatic values include:
+
+- string / text
+- URL
+- date
+- boolean
+- integer
+- float
+- monetary
+- select using an existing select option ID
+
+`documentlink` is deliberately not filled automatically.
+
+Typical fields such as `Rechnungsnummer`, `Kundennummer`, `Vertragsnummer`, `Betrag`, `Fälligkeit`, `IBAN` or `Empfänger` can therefore be detected and filled when those fields exist in Paperless and the value is visible in the document. Existing non-empty custom-field values are protected by default; set `OVERWRITE_CUSTOM_FIELDS=true` only if Codex should be allowed to replace them.
 
 ## PDF handling
 
@@ -116,11 +151,14 @@ Optional:
 - `MIN_CONFIDENCE=0.55`
 - `WRITE_CONTENT=true`
 - `CREATE_MISSING_METADATA=true`
+- `EXISTING_MATCH_THRESHOLD=0.86`
+- `OVERWRITE_CUSTOM_FIELDS=false`
 
 ## API
 
 - `GET /health`
 - `GET /status`
+- `GET /metadata`
 - `POST /auth/start`
 - `GET /auth/{sessionId}`
 - `POST /webhook/paperless`
