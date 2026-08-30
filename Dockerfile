@@ -8,7 +8,7 @@ RUN apt-get update \
     && mv /usr/local/bin/codex /usr/local/bin/codex-real
 
 WORKDIR /app
-COPY server.mjs ./server.mjs
+COPY server-v2.mjs ./server.mjs
 COPY codex-wrapper.mjs /usr/local/bin/codex
 RUN chmod 0755 /usr/local/bin/codex \
     && mkdir -p /data/codex /data/state /tmp/paperless-codex \
