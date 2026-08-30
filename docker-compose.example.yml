@@ -4,6 +4,8 @@ services:
     restart: unless-stopped
     depends_on:
       - webserver
+    ports:
+      - "127.0.0.1:8484:8080"
     environment:
       PAPERLESS_URL: http://webserver:8000
       PAPERLESS_TOKEN: ${PAPERLESS_CODEX_TOKEN:?PAPERLESS_CODEX_TOKEN is required}
@@ -14,9 +16,12 @@ services:
       MAX_DOCUMENT_BYTES: 52428800
       MAX_PAGES: 20
       PDF_DPI: 150
+      CODEX_TIMEOUT_MS: 360000
       MIN_CONFIDENCE: 0.55
       WRITE_CONTENT: "true"
       CREATE_MISSING_METADATA: "true"
+      EXISTING_MATCH_THRESHOLD: 0.86
+      OVERWRITE_CUSTOM_FIELDS: "false"
     volumes:
       - paperless_codex_data:/data/codex
       - paperless_codex_state:/data/state
