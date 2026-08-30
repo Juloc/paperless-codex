@@ -9,6 +9,8 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY server-v2.mjs ./server.mjs
+COPY ui-server.mjs ./ui-server.mjs
+COPY ui.html ./ui.html
 COPY codex-wrapper.mjs /usr/local/bin/codex
 RUN chmod 0755 /usr/local/bin/codex \
     && mkdir -p /data/codex /data/state /tmp/paperless-codex \
@@ -16,10 +18,11 @@ RUN chmod 0755 /usr/local/bin/codex \
 
 ENV NODE_ENV=production \
     PORT=8080 \
+    INNER_PORT=8081 \
     CODEX_HOME=/data/codex \
     CODEX_WORKDIR=/tmp/paperless-codex \
     STATE_DIR=/data/state
 
 USER node
 EXPOSE 8080
-CMD ["node", "server.mjs"]
+CMD ["node", "ui-server.mjs"]
