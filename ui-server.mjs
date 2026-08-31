@@ -6,9 +6,14 @@ const publicPort = Number(process.env.PORT || 8080);
 const innerPort = Number(process.env.INNER_PORT || 8081);
 const bridgeKey = String(process.env.BRIDGE_KEY || '');
 const codexHome = process.env.CODEX_HOME || '/data/codex';
+const paperlessUrl = String(process.env.PAPERLESS_URL || '').replace(/\/$/, '');
+const paperlessToken = String(process.env.PAPERLESS_TOKEN || '');
 const uiPath = new URL('./ui.html', import.meta.url);
+const fallbackThemeColor = '#17541f';
 
 if (!bridgeKey) throw new Error('BRIDGE_KEY is required.');
+if (!paperlessUrl) throw new Error('PAPERLESS_URL is required.');
+if (!paperlessToken) throw new Error('PAPERLESS_TOKEN is required.');
 
 const backend = spawn(process.execPath, ['/app/server.mjs'], {
   env: { ...process.env, PORT: String(innerPort) },
@@ -59,6 +64,53 @@ async function proxy(req, res, path, injectKey = false) {
   }
 }
 
+function parseBoolean(value, fallback = false) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    if (/^(true|1|yes)$/i.test(value)) return true;
+    if (/^(false|0|no)$/i.test(value)) return false;
+  }
+  return fallback;
+}
+
+function normalizeHexColor(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return fallbackThemeColor;
+  const withHash = raw.startsWith('#') ? raw : `#${raw}`;
+  return /^#[0-9a-f]{6}$/i.test(withHash) ? withHash.toLowerCase() : fallbackThemeColor;
+}
+
+async function paperlessTheme() {
+  const response = await fetch(`${paperlessUrl}/api/ui_settings/`, {
+    headers: {
+      Authorization: `Token ${paperlessToken}`,
+      Accept: 'application/json; version=10'
+    }
+  });
+  if (!response.ok) throw new Error(`Paperless UI settings failed: ${response.status}`);
+  const body = await response.json();
+  const settings = body?.settings || {};
+  const theme = settings?.theme || {};
+  const darkMode = settings?.dark_mode || {};
+  const useSystem = parseBoolean(darkMode?.use_system, true);
+  const darkEnabled = parseBoolean(darkMode?.enabled, false);
+  return {
+    color: normalizeHexColor(theme?.color),
+    appearance: useSystem ? 'system' : (darkEnabled ? 'dark' : 'light')
+  };
+}
+
+function sendJson(res, status, value) {
+  const body = Buffer.from(JSON.stringify(value));
+  res.writeHead(status, {
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': body.length,
+    'cache-control': 'no-store',
+    'x-content-type-options': 'nosniff'
+  });
+  res.end(body);
+}
+
 async function logout(res) {
   const child = spawn('codex', ['logout'], {
     env: { ...process.env, CODEX_HOME: codexHome },
@@ -68,15 +120,9 @@ async function logout(res) {
   child.stderr.on('data', chunk => { stderr += chunk.toString('utf8'); });
   child.on('close', code => {
     const ok = code === 0;
-    const body = Buffer.from(JSON.stringify(ok ? { success: true } : { error: stderr.trim() || `codex logout exited with ${code}` }));
-    res.writeHead(ok ? 200 : 500, { 'content-type': 'application/json; charset=utf-8', 'content-length': body.length, 'cache-control': 'no-store' });
-    res.end(body);
+    sendJson(res, ok ? 200 : 500, ok ? { success: true } : { error: stderr.trim() || `codex logout exited with ${code}` });
   });
-  child.on('error', error => {
-    const body = Buffer.from(JSON.stringify({ error: error.message }));
-    res.writeHead(500, { 'content-type': 'application/json; charset=utf-8', 'content-length': body.length });
-    res.end(body);
-  });
+  child.on('error', error => sendJson(res, 500, { error: error.message }));
 }
 
 const server = http.createServer(async (req, res) => {
@@ -94,6 +140,14 @@ const server = http.createServer(async (req, res) => {
     return res.end(html);
   }
 
+  if (req.method === 'GET' && url.pathname === '/ui-api/theme') {
+    try {
+      return sendJson(res, 200, await paperlessTheme());
+    } catch (error) {
+      return sendJson(res, 200, { color: fallbackThemeColor, appearance: 'system', fallback: true, error: error.message });
+    }
+  }
+
   if (url.pathname.startsWith('/ui-api/')) {
     const path = url.pathname.slice('/ui-api'.length) + url.search;
     if (req.method === 'POST' && path === '/logout') return logout(res);
@@ -101,11 +155,7 @@ const server = http.createServer(async (req, res) => {
       (req.method === 'GET' && ['/status', '/metadata', '/jobs'].includes(path)) ||
       (req.method === 'POST' && path === '/auth/start') ||
       (req.method === 'GET' && /^\/auth\/[0-9a-f-]+$/i.test(path));
-    if (!allowed) {
-      const body = Buffer.from(JSON.stringify({ error: 'UI API route not allowed.' }));
-      res.writeHead(404, { 'content-type': 'application/json; charset=utf-8', 'content-length': body.length });
-      return res.end(body);
-    }
+    if (!allowed) return sendJson(res, 404, { error: 'UI API route not allowed.' });
     return proxy(req, res, path, true);
   }
 
