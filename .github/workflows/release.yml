@@ -7,9 +7,6 @@ on:
         description: Image tag, for example 0.1.3
         required: true
         default: 0.1.3
-  push:
-    paths:
-      - .release-0.1.3
 
 permissions:
   contents: read
@@ -31,5 +28,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/juloc/paperless-codex:${{ github.event_name == 'workflow_dispatch' && inputs.version || '0.1.3' }}
+            ghcr.io/juloc/paperless-codex:${{ inputs.version }}
             ghcr.io/juloc/paperless-codex:latest
