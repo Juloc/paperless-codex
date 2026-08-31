@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Paperless Codex
 // @namespace    https://github.com/Juloc/paperless-codex
-// @version      0.2.0
+// @version      0.2.1
 // @description  Integriert Paperless Codex direkt in die Paperless-ngx-Oberfläche.
 // @match        https://paperless.juloc.de/*
 // @match        https://www.paperless.juloc.de/*
@@ -71,6 +71,11 @@
     return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
   }
 
+  function currentPaperlessDocumentId() {
+    const match = location.pathname.match(/\/documents\/(\d+)(?:\/|$)/i);
+    return match ? Number(match[1]) : null;
+  }
+
   function ensureStyles() {
     if (document.getElementById('paperless-codex-style')) return;
     const style = document.createElement('style');
@@ -86,9 +91,10 @@
       .pc-badge{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border:1px solid var(--bs-border-color,#dee2e6);border-radius:999px;font-size:.8rem}.pc-dot{width:8px;height:8px;border-radius:50%;background:#6c757d}.pc-ok .pc-dot{background:#198754}.pc-warn .pc-dot{background:#f0ad4e}.pc-bad .pc-dot{background:#dc3545}
       .pc-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.pc-btn{border:1px solid var(--bs-border-color,#ced4da);border-radius:.375rem;padding:7px 11px;background:var(--bs-body-bg,#fff);color:inherit;cursor:pointer}.pc-btn:hover{filter:brightness(.96)}.pc-btn:disabled{opacity:.5;cursor:not-allowed}.pc-btn-primary{background:var(--bs-primary,#0d6efd);border-color:var(--bs-primary,#0d6efd);color:#fff}
       .pc-progress{height:8px;background:var(--bs-secondary-bg,#e9ecef);border-radius:999px;overflow:hidden;margin-top:12px}.pc-progress>span{display:block;height:100%;width:0;background:var(--bs-primary,#0d6efd);transition:width .2s}.pc-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px}.pc-stat{border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;padding:9px}.pc-stat strong{display:block;font-size:1.05rem}.pc-stat small{color:var(--bs-secondary-color,#6c757d)}
-      .pc-config input{width:100%;padding:8px 10px;border:1px solid var(--bs-border-color,#ced4da);border-radius:.375rem;background:var(--bs-body-bg,#fff);color:inherit}.pc-error{margin-top:12px;padding:10px 12px;border:1px solid rgba(220,53,69,.35);border-radius:.375rem;color:#dc3545;display:none}.pc-auth{margin-top:12px;padding:12px;border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;display:none}.pc-code{font:600 1.35rem ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:1px;margin:8px 0}
+      .pc-config input,.pc-manual input{width:100%;padding:8px 10px;border:1px solid var(--bs-border-color,#ced4da);border-radius:.375rem;background:var(--bs-body-bg,#fff);color:inherit}.pc-manual-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}.pc-manual-result{margin-top:8px;text-align:left}
+      .pc-error{margin-top:12px;padding:10px 12px;border:1px solid rgba(220,53,69,.35);border-radius:.375rem;color:#dc3545;display:none}.pc-auth{margin-top:12px;padding:12px;border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;display:none}.pc-code{font:600 1.35rem ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:1px;margin:8px 0}
       .pc-table{width:100%;border-collapse:collapse}.pc-table th,.pc-table td{padding:8px;border-bottom:1px solid var(--bs-border-color,#dee2e6);text-align:left}.pc-table th{font-size:.8rem;color:var(--bs-secondary-color,#6c757d)}
-      @media(max-width:800px){.pc-grid{grid-template-columns:1fr}.pc-card.pc-full{grid-column:auto}.pc-stats{grid-template-columns:repeat(2,1fr)}#paperless-codex-panel{padding:14px}}
+      @media(max-width:800px){.pc-grid{grid-template-columns:1fr}.pc-card.pc-full{grid-column:auto}.pc-stats{grid-template-columns:repeat(2,1fr)}.pc-manual-form{grid-template-columns:1fr}#paperless-codex-panel{padding:14px}}
     `;
     document.head.appendChild(style);
   }
@@ -117,6 +123,10 @@
             <div class="pc-row"><span>Pipeline</span><span class="pc-muted" id="pc-pipeline">–</span></div>
             <div class="pc-row"><span>Neue Dokumente</span><span class="pc-muted" id="pc-discovery">–</span></div>
             <div class="pc-row"><span>Provenienz</span><span class="pc-muted" id="pc-provenance">–</span></div>
+          </div>
+          <div class="pc-card pc-full pc-manual"><div class="pc-card-h"><span>Dokument erneut scannen</span><span class="pc-badge" id="pc-manual-badge"><span class="pc-dot"></span><span>Bereit</span></span></div><div class="pc-card-b">
+            <div class="pc-manual-form"><label for="pc-document-id">Dokument-ID<input id="pc-document-id" type="number" min="1" step="1" inputmode="numeric" placeholder="z. B. 123"></label><button class="pc-btn pc-btn-primary" id="pc-rescan">Erneut scannen</button></div>
+            <div class="pc-muted pc-manual-result" id="pc-manual-result">Öffnest du Codex auf einer Dokumentseite, wird die ID automatisch übernommen.</div>
           </div>
           <div class="pc-card pc-full"><div class="pc-card-h"><span>Alle bestehenden Dokumente scannen</span><span class="pc-badge" id="pc-bulk-badge"><span class="pc-dot"></span><span>Bereit</span></span></div><div class="pc-card-b">
             <div class="pc-row"><span>Reihenfolge</span><span class="pc-muted">Neueste zuerst</span></div><div class="pc-row"><span>Aktuell</span><span class="pc-muted" id="pc-bulk-current">–</span></div>
@@ -222,6 +232,31 @@
     } catch (error) { showError(error); }
   }
 
+  async function rescanDocument() {
+    const documentId = Number(q('pc-document-id').value);
+    if (!Number.isInteger(documentId) || documentId <= 0) {
+      setBadge('pc-manual-badge', 'bad', 'Ungültige ID');
+      q('pc-manual-result').textContent = 'Bitte eine gültige Paperless-Dokument-ID eingeben.';
+      return;
+    }
+    const button = q('pc-rescan');
+    button.disabled = true;
+    setBadge('pc-manual-badge', 'warn', 'Wird eingereiht');
+    q('pc-manual-result').textContent = `Dokument #${documentId} wird erneut gescannt…`;
+    try {
+      const result = await request(`ui-api/documents/${documentId}/scan`, { method: 'POST', body: {} });
+      setBadge('pc-manual-badge', 'ok', 'In Queue');
+      q('pc-manual-result').textContent = `Dokument #${result.documentId || documentId} wurde zur Scan-Queue hinzugefügt.`;
+      await refresh();
+    } catch (error) {
+      setBadge('pc-manual-badge', 'bad', 'Fehler');
+      q('pc-manual-result').textContent = String(error.message || error);
+      showError(error);
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   function bindPanel(root) {
     q('pc-close').onclick = closePanel;
     q('pc-refresh').onclick = refresh;
@@ -233,16 +268,20 @@
     };
     q('pc-auth-open').onclick = () => { const url = q('pc-auth-open').dataset.url; if (url) window.open(url, '_blank', 'noopener,noreferrer'); };
     q('pc-auth-copy').onclick = () => navigator.clipboard?.writeText(q('pc-auth-code').textContent || '');
+    q('pc-rescan').onclick = rescanDocument;
+    q('pc-document-id').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); rescanDocument(); } });
     q('pc-bulk-start').onclick = async () => { try { renderBulk(await request('ui-api/bulk/start', { method: 'POST', body: { skipCurrent: q('pc-skip').checked } })); } catch (e) { showError(e); } };
     q('pc-bulk-pause').onclick = async () => { try { renderBulk(await request('ui-api/bulk/pause', { method: 'POST', body: {} })); } catch (e) { showError(e); } };
     q('pc-bulk-resume').onclick = async () => { try { renderBulk(await request('ui-api/bulk/resume', { method: 'POST', body: {} })); } catch (e) { showError(e); } };
     q('pc-bulk-cancel').onclick = async () => { try { renderBulk(await request('ui-api/bulk/cancel', { method: 'POST', body: {} })); } catch (e) { showError(e); } };
     if (getBaseUrl()) q('pc-url').value = getBaseUrl(); else q('pc-url').value = DEFAULT_URL;
+    const currentId = currentPaperlessDocumentId(); if (currentId) q('pc-document-id').value = String(currentId);
   }
 
   function openPanel(event) {
     event?.preventDefault(); event?.stopPropagation();
     const root = panel(); updatePanelBounds(); root.classList.add('pc-open');
+    const currentId = currentPaperlessDocumentId(); if (currentId) q('pc-document-id').value = String(currentId);
     document.getElementById('paperless-codex-menu-item')?.querySelector('a')?.classList.add('active');
     clearInterval(refreshTimer); refresh(); refreshTimer = setInterval(refresh, 10000);
   }
