@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Paperless Codex
 // @namespace    https://github.com/Juloc/paperless-codex
-// @version      0.2.1
+// @version      0.2.2
 // @description  Integriert Paperless Codex direkt in die Paperless-ngx-Oberfläche.
 // @match        https://paperless.juloc.de/*
 // @match        https://www.paperless.juloc.de/*
@@ -17,7 +17,9 @@
   'use strict';
 
   const KEY = 'paperlessCodexUrl';
-  const DEFAULT_URL = 'http://127.0.0.1:8484/';
+  const DEFAULT_URL = 'http://192.168.1.26:8484/';
+  const previousUrl = GM_getValue(KEY, '');
+  if (/^http:\/\/(?:127\.0\.0\.1|localhost):8484\/?$/i.test(previousUrl)) GM_setValue(KEY, DEFAULT_URL);
   let refreshTimer = null;
   let authTimer = null;
 
@@ -136,7 +138,7 @@
             <div class="pc-actions"><button class="pc-btn pc-btn-primary" id="pc-bulk-start">Alle scannen</button><button class="pc-btn" id="pc-bulk-pause">Pausieren</button><button class="pc-btn" id="pc-bulk-resume">Fortsetzen</button><button class="pc-btn" id="pc-bulk-cancel">Abbrechen</button></div>
           </div>
           <div class="pc-card pc-full"><div class="pc-card-h"><span>Letzte Jobs</span></div><div class="pc-card-b"><div id="pc-jobs-empty" class="pc-muted" style="text-align:left">Keine Jobs.</div><table class="pc-table" id="pc-jobs" hidden><thead><tr><th>Dokument</th><th>Status</th><th>Versuch</th><th>Quelle</th></tr></thead><tbody></tbody></table></div></div>
-          <div class="pc-card pc-full pc-config"><div class="pc-card-h"><span>Verbindungseinstellung</span></div><div class="pc-card-b"><label for="pc-url">Codex-URL</label><input id="pc-url" type="url" placeholder="http://SERVER-IP:8484/" autocomplete="off"><div class="pc-actions"><button class="pc-btn pc-btn-primary" id="pc-save-url">Speichern & testen</button></div><div class="pc-muted" style="text-align:left;margin-top:8px">Die URL wird nur lokal in Tampermonkey gespeichert. Kein Browser-Prompt und kein separates Codex-Fenster.</div></div></div>
+          <div class="pc-card pc-full pc-config"><div class="pc-card-h"><span>Verbindungseinstellung</span></div><div class="pc-card-b"><label for="pc-url">Codex-URL</label><input id="pc-url" type="url" placeholder="http://192.168.1.26:8484/" autocomplete="off"><div class="pc-actions"><button class="pc-btn pc-btn-primary" id="pc-save-url">Speichern & testen</button></div><div class="pc-muted" style="text-align:left;margin-top:8px">Die URL wird nur lokal in Tampermonkey gespeichert. Kein Browser-Prompt und kein separates Codex-Fenster.</div></div></div>
         </div>
         <div class="pc-error" id="pc-error"></div>
       </div>`;
