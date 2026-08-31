@@ -33,7 +33,7 @@ ENV NODE_ENV=production \
     CODEX_HOME=/data/codex \
     CODEX_WORKDIR=/tmp/paperless-codex \
     STATE_DIR=/data/state \
-    PAPERLESS_CODEX_VERSION=0.1.3 \
+    PAPERLESS_CODEX_VERSION=0.1.4 \
     PAPERLESS_CODEX_PIPELINE_VERSION=6
 
 USER node
