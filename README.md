@@ -19,11 +19,13 @@ PDF → page PNGs with Poppler
 Codex CLI --image ...
 ChatGPT device-code login
         ↓
-Structured JSON
+Structured JSON + OCR confidence
         ↓
 Reuse existing Paperless taxonomy + fill matching custom fields
         ↓
-PATCH Paperless document
+Compare Codex OCR with existing Paperless OCR
+        ↓
+PATCH Paperless document + provenance tags
 ```
 
 Codex extracts:
@@ -37,7 +39,40 @@ Codex extracts:
 - tags
 - storage path (existing paths only)
 - matching existing custom fields and their values
-- language, short summary, confidence and warnings
+- language, short summary, OCR confidence, overall confidence and warnings
+
+## OCR improvement
+
+Codex reads the rendered document pages directly and creates a fresh `fullText`. The prompt explicitly asks it to correct obvious OCR artifacts and broken line-end word splits while preserving the original meaning and exact identifiers.
+
+Important identifiers such as invoice numbers, customer numbers, contract numbers, reference numbers, IBAN/BIC, amounts, dates, email addresses, phone numbers and addresses must be transcribed conservatively. Unreadable content is marked as `[unleserlich]` instead of being guessed.
+
+The new OCR does not blindly overwrite Paperless content. With the default `OCR_REPLACE_MODE=better` the sidecar compares the existing Paperless `content` with the Codex result and only replaces it when:
+
+- `ocrConfidence` is at least `OCR_MIN_CONFIDENCE` (default `0.70`),
+- the candidate passes basic plausibility checks,
+- and the Codex text is materially better or at least comparable and sufficiently complete.
+
+Before replacing non-empty Paperless OCR, the existing content is backed up under `/data/state/ocr-backups/<document-id>.json`.
+
+`OCR_REPLACE_MODE=always` can force replacement after confidence/plausibility checks, but `better` is the recommended default.
+
+## AI / tool provenance
+
+Every successfully processed document can receive controlled Paperless tags describing the current processing provenance:
+
+- `AI: Codex`
+- `AI Tool: paperless-codex <version>`
+- `AI Pipeline: <pipeline-version>`
+- `AI Model: <resolved-or-configured-model>`
+- `AI CLI: <codex-cli-version>`
+- `AI OCR: improved` or `AI OCR: kept-existing`
+
+Old provenance tags are removed when a document is processed again, so the visible tags describe the current result instead of accumulating stale versions.
+
+A persistent history of up to 20 runs per document is additionally stored in `/data/state/provenance.json`, including document hash, tool version, pipeline version, detected/configured model, Codex CLI version, confidence, OCR decision and scanned page count. This makes it possible to identify documents that should be reprocessed after a major pipeline or model upgrade.
+
+If `CODEX_MODEL` is explicitly set, model provenance is deterministic. If it is empty, the service tries to detect the resolved model from Codex JSON events and otherwise records `account-default`.
 
 ## Existing metadata first
 
@@ -143,12 +178,17 @@ Required:
 
 Optional:
 
+- `PAPERLESS_CODEX_VERSION=0.1.0`
+- `PAPERLESS_CODEX_PIPELINE_VERSION=2`
+- `PROVENANCE_TAGS=true`
 - `MAX_DOCUMENT_BYTES=52428800`
 - `MAX_PAGES=20`
 - `PDF_DPI=150`
 - `CODEX_TIMEOUT_MS=360000`
 - `CODEX_MODEL=`
 - `MIN_CONFIDENCE=0.55`
+- `OCR_MIN_CONFIDENCE=0.70`
+- `OCR_REPLACE_MODE=better`
 - `WRITE_CONTENT=true`
 - `CREATE_MISSING_METADATA=true`
 - `EXISTING_MATCH_THRESHOLD=0.86`
@@ -159,6 +199,8 @@ Optional:
 - `GET /health`
 - `GET /status`
 - `GET /metadata`
+- `GET /provenance`
+- `GET /documents/{documentId}/provenance`
 - `POST /auth/start`
 - `GET /auth/{sessionId}`
 - `POST /webhook/paperless`
@@ -175,6 +217,8 @@ All endpoints except `/health` require `X-Paperless-Codex-Key`.
 - Do not expose the service directly to the internet.
 - The Docker container can run read-only with `/tmp` as tmpfs and `/data/codex` + `/data/state` persisted.
 
-## Queue
+## Queue and state
 
 Queued document IDs are stored under `/data/state/queue.json`. The current document remains in that queue until processing finishes, so a container restart can resume it.
+
+Persistent provenance is stored in `/data/state/provenance.json`; OCR backups are stored in `/data/state/ocr-backups/`.
