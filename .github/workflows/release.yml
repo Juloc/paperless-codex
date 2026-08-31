@@ -6,7 +6,10 @@ on:
       version:
         description: Image tag, for example 0.1.0
         required: true
-        default: 0.1.1
+        default: 0.1.2
+  push:
+    paths:
+      - .release-0.1.2
 
 permissions:
   contents: read
@@ -28,5 +31,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/juloc/paperless-codex:${{ inputs.version }}
+            ghcr.io/juloc/paperless-codex:0.1.2
             ghcr.io/juloc/paperless-codex:latest
