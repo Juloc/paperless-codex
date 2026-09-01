@@ -4,9 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Image tag, for example 0.1.4
+        description: Image tag, for example 0.1.5
         required: true
-        default: 0.1.4
+        default: 0.1.5
+  push:
+    paths:
+      - .release-0.1.5
 
 permissions:
   contents: read
@@ -28,5 +31,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/juloc/paperless-codex:${{ inputs.version }}
+            ghcr.io/juloc/paperless-codex:${{ inputs.version || '0.1.5' }}
             ghcr.io/juloc/paperless-codex:latest
