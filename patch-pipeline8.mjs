@@ -20,20 +20,26 @@ function replaceRange(label, start, end, replacement) {
   source = source.slice(0, from) + replacement + '\n\n' + source.slice(to);
 }
 
+function replaceInclusiveTextRange(label, startText, endText, replacement) {
+  const startHit = source.indexOf(startText);
+  if (startHit < 0) throw new Error(`Pipeline 8 patch failed: ${label} start text not found`);
+  const from = Math.max(0, source.lastIndexOf('- ', startHit));
+  const endHit = source.indexOf(endText, startHit);
+  if (endHit < 0) throw new Error(`Pipeline 8 patch failed: ${label} end text not found`);
+  const to = endHit + endText.length;
+  source = source.slice(0, from) + replacement + source.slice(to);
+}
+
 replaceOnce(
   'semantic tag limit',
   "const maxSemanticTags = Math.max(0, Math.min(2, Number(process.env.MAX_SEMANTIC_TAGS || 2)));",
   "const maxSemanticTags = Math.max(0, Math.min(8, Number(process.env.MAX_SEMANTIC_TAGS || 6)));"
 );
 
-replaceOnce(
+replaceInclusiveTextRange(
   'semantic tag prompt',
-  block([
-    '- Tags sind optional und nur für wenige, breite, wiederverwendbare Querschnittskategorien gedacht. Maximal 2 Tags.',
-    '- Für Tags ausschließlich bereits vorhandene Paperless-Tags per existingId verwenden. Niemals neue Tags vorschlagen.',
-    '- Niemals Dokumenttyp, Korrespondent/Absender, Empfänger, Monat/Jahr, Produktnamen, Marken, einzelne OCR-Stichwörter oder den Titel als Tag duplizieren.',
-    '- Beispiele wie Rechnung, Kassenbon, Gehaltsabrechnung gehören in documentType und NICHT zusätzlich in tags. Wenn kein wirklich hilfreicher vorhandener Tag passt, tags=[] zurückgeben.'
-  ]),
+  'Tags sind optional und nur für wenige, breite, wiederverwendbare Querschnittskategorien gedacht.',
+  'Wenn kein wirklich hilfreicher vorhandener Tag passt, tags=[] zurückgeben.',
   block([
     '- Tags sind dauerhafte semantische Klassifikation, keine Ablage für extrahierte Einzelwerte. Bis zu 6 sinnvolle Tags sind erlaubt; weniger ist besser.',
     '- Für Tags ausschließlich bereits vorhandene Paperless-Tags per existingId verwenden. Niemals neue Tags erfinden oder aus einzelnen OCR-Wörtern erzeugen.',
@@ -92,9 +98,7 @@ replaceRange(
     '  }',
     '  for (const id of semanticTagIds) existingIds.add(Number(id));',
     '  return { ids: [...existingIds], tags: [], field, replacedManagedTags: previousManagedIds.size > 0 };',
-    '}',
-    '',
-    'function sameScalar(a, b) {'
+    '}'
   ])
 );
 
