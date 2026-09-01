@@ -1,6 +1,6 @@
 services:
   paperless-codex:
-    image: ghcr.io/juloc/paperless-codex:${PAPERLESS_CODEX_VERSION:-0.1.3}
+    image: ghcr.io/juloc/paperless-codex:${PAPERLESS_CODEX_VERSION:-0.1.5}
     restart: unless-stopped
     depends_on:
       - webserver
@@ -13,11 +13,13 @@ services:
       CODEX_HOME: /data/codex
       CODEX_WORKDIR: /tmp/paperless-codex
       STATE_DIR: /data/state
-      PAPERLESS_CODEX_VERSION: ${PAPERLESS_CODEX_VERSION:-0.1.3}
-      PAPERLESS_CODEX_PIPELINE_VERSION: "6"
+      PAPERLESS_CODEX_VERSION: ${PAPERLESS_CODEX_VERSION:-0.1.5}
+      PAPERLESS_CODEX_PIPELINE_VERSION: "7"
       PROVENANCE_TAGS: "false"
       PROVENANCE_CUSTOM_FIELD: "true"
       PROVENANCE_FIELD_NAME: AI Provenienz
+      MAX_SEMANTIC_TAGS: "2"
+      VERIFY_PAPERLESS_WRITES: "true"
       AUTO_DISCOVERY: "true"
       DISCOVERY_INTERVAL_MS: "60000"
       DISCOVERY_PAGE_SIZE: "200"
@@ -31,7 +33,7 @@ services:
       MAX_RETRIES: "2"
       RETRY_DELAY_MS: "15000"
       OCR_MIN_CONFIDENCE: "0.70"
-      OCR_REPLACE_MODE: better
+      OCR_REPLACE_MODE: validated
       CODEX_MODEL: ${PAPERLESS_CODEX_MODEL:-}
       WRITE_CONTENT: "true"
       CREATE_MISSING_METADATA: "true"
