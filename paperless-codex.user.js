@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Paperless Codex
 // @namespace    https://github.com/Juloc/paperless-codex
-// @version      0.2.2
+// @version      0.2.3
 // @description  Integriert Paperless Codex direkt in die Paperless-ngx-Oberfläche.
 // @match        https://paperless.juloc.de/*
 // @match        https://www.paperless.juloc.de/*
@@ -125,6 +125,8 @@
             <div class="pc-row"><span>Pipeline</span><span class="pc-muted" id="pc-pipeline">–</span></div>
             <div class="pc-row"><span>Neue Dokumente</span><span class="pc-muted" id="pc-discovery">–</span></div>
             <div class="pc-row"><span>Provenienz</span><span class="pc-muted" id="pc-provenance">–</span></div>
+            <div class="pc-row"><span>Schreibtest</span><span class="pc-muted" id="pc-selftest-state">Noch nicht ausgeführt</span></div>
+            <div class="pc-actions"><button class="pc-btn" id="pc-selftest">Paperless-Selbsttest</button></div>
           </div>
           <div class="pc-card pc-full pc-manual"><div class="pc-card-h"><span>Dokument erneut scannen</span><span class="pc-badge" id="pc-manual-badge"><span class="pc-dot"></span><span>Bereit</span></span></div><div class="pc-card-b">
             <div class="pc-manual-form"><label for="pc-document-id">Dokument-ID<input id="pc-document-id" type="number" min="1" step="1" inputmode="numeric" placeholder="z. B. 123"></label><button class="pc-btn pc-btn-primary" id="pc-rescan">Erneut scannen</button></div>
@@ -193,6 +195,19 @@
     tbody.innerHTML = jobs.map(job => `<tr><td>#${esc(job.documentId)}</td><td>${esc(job.status || '–')}</td><td>${esc(job.attempt || 0)}</td><td>${esc(job.source || (job.bulk ? 'bulk' : 'manuell'))}</td></tr>`).join('');
   }
 
+  function renderProvenance(provenance = {}) {
+    const name = provenance.customField || 'AI Provenienz';
+    q('pc-provenance').textContent = provenance.fieldExists ? `${name} · vorhanden ✓` : `${name} · fehlt ✗${provenance.error ? ' · API-Fehler' : ''}`;
+    const test = provenance.lastSelfTest;
+    if (!test) {
+      q('pc-selftest-state').textContent = 'Noch nicht ausgeführt';
+      return;
+    }
+    q('pc-selftest-state').textContent = test.ok
+      ? `OK ✓ · Content ${test.contentWrite ? '✓' : '✗'} · Zusatzfeld ${test.customFieldWrite ? '✓' : '✗'}`
+      : `Fehler ✗ · Content ${test.contentWrite ? '✓' : '✗'} · Zusatzfeld ${test.customFieldWrite ? '✓' : '✗'}`;
+  }
+
   async function refresh() {
     if (!getBaseUrl()) { q('pc-url').value = ''; showError('Bitte zuerst die Codex-URL unten eintragen.'); return; }
     q('pc-url').value = getBaseUrl();
@@ -211,7 +226,7 @@
       q('pc-pipeline').textContent = `${status.toolVersion || '–'} / Pipeline ${status.pipelineVersion || '–'}`;
       const discovery = status.discovery || {};
       q('pc-discovery').textContent = discovery.enabled ? `Automatisch · alle ${Math.round((discovery.intervalMs || 60000) / 1000)} s${discovery.lastError ? ' · Fehler' : ''}` : 'Aus';
-      q('pc-provenance').textContent = status.provenance?.customField || 'AI Provenienz';
+      renderProvenance(status.provenance || {});
       renderBulk(bulk); renderJobs(jobs);
     } catch (error) { showError(error); }
   }
@@ -232,6 +247,24 @@
         } catch {}
       }, 1500);
     } catch (error) { showError(error); }
+  }
+
+  async function runSelfTest() {
+    const button = q('pc-selftest');
+    button.disabled = true;
+    q('pc-selftest-state').textContent = 'Läuft…';
+    try {
+      const result = await request('ui-api/selftest', { method: 'POST', body: {} });
+      q('pc-selftest-state').textContent = result.ok
+        ? `OK ✓ · Content ${result.contentWrite ? '✓' : '✗'} · Zusatzfeld ${result.customFieldWrite ? '✓' : '✗'}`
+        : `Fehler ✗ · Content ${result.contentWrite ? '✓' : '✗'} · Zusatzfeld ${result.customFieldWrite ? '✓' : '✗'}`;
+      await refresh();
+    } catch (error) {
+      q('pc-selftest-state').textContent = `Fehler: ${String(error.message || error)}`;
+      showError(error);
+    } finally {
+      button.disabled = false;
+    }
   }
 
   async function rescanDocument() {
@@ -263,6 +296,7 @@
     q('pc-close').onclick = closePanel;
     q('pc-refresh').onclick = refresh;
     q('pc-login').onclick = startAuth;
+    q('pc-selftest').onclick = runSelfTest;
     q('pc-save-url').onclick = () => {
       const value = normalizedUrl(q('pc-url').value);
       if (!value) return showError('Ungültige Codex-URL.');
