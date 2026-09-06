@@ -21,6 +21,7 @@ COPY patch-pipeline11.mjs ./patch-pipeline11.mjs
 COPY patch-pipeline12.mjs ./patch-pipeline12.mjs
 COPY patch-pipeline13.mjs ./patch-pipeline13.mjs
 COPY patch-pipeline14.mjs ./patch-pipeline14.mjs
+COPY patch-pipeline15.mjs ./patch-pipeline15.mjs
 COPY ui-server.mjs ./ui-server.mjs
 COPY paperless-codex.user.js ./paperless-codex.user.js
 COPY ui-v2.html ./ui.html
@@ -37,10 +38,11 @@ RUN node ./patch-pipeline3.mjs \
     && node ./patch-pipeline12.mjs \
     && node ./patch-pipeline13.mjs \
     && node ./patch-pipeline14.mjs \
+    && node ./patch-pipeline15.mjs \
     && node --check ./server.mjs \
     && node --check ./ui-server.mjs \
     && node --check ./paperless-codex.user.js \
-    && rm ./patch-pipeline3.mjs ./patch-pipeline4.mjs ./patch-pipeline5.mjs ./patch-pipeline6.mjs ./patch-pipeline7.mjs ./patch-pipeline8.mjs ./patch-pipeline9.mjs ./patch-pipeline10.mjs ./patch-pipeline11.mjs ./patch-pipeline12.mjs ./patch-pipeline13.mjs ./patch-pipeline14.mjs ./paperless-codex.user.js \
+    && rm ./patch-pipeline3.mjs ./patch-pipeline4.mjs ./patch-pipeline5.mjs ./patch-pipeline6.mjs ./patch-pipeline7.mjs ./patch-pipeline8.mjs ./patch-pipeline9.mjs ./patch-pipeline10.mjs ./patch-pipeline11.mjs ./patch-pipeline12.mjs ./patch-pipeline13.mjs ./patch-pipeline14.mjs ./patch-pipeline15.mjs ./paperless-codex.user.js \
     && chmod 0755 /usr/local/bin/codex \
     && mkdir -p /data/codex /data/state /tmp/paperless-codex \
     && chown -R node:node /data /tmp/paperless-codex /app
@@ -51,8 +53,8 @@ ENV NODE_ENV=production \
     CODEX_HOME=/data/codex \
     CODEX_WORKDIR=/tmp/paperless-codex \
     STATE_DIR=/data/state \
-    PAPERLESS_CODEX_VERSION=0.2.2 \
-    PAPERLESS_CODEX_PIPELINE_VERSION=14
+    PAPERLESS_CODEX_VERSION=0.2.3 \
+    PAPERLESS_CODEX_PIPELINE_VERSION=15
 
 USER node
 EXPOSE 8080
