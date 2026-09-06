@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Paperless Codex
 // @namespace    https://github.com/Juloc/paperless-codex
-// @version      0.3.2
+// @version      0.3.3
 // @description  Integriert Paperless Codex direkt in die Paperless-ngx-Oberfläche.
 // @match        https://paperless.juloc.de/*
 // @match        https://www.paperless.juloc.de/*
@@ -22,6 +22,7 @@
   if (/^http:\/\/(?:127\.0\.0\.1|localhost):8484\/?$/i.test(previousUrl)) GM_setValue(KEY, DEFAULT_URL);
   let refreshTimer = null;
   let authTimer = null;
+  let metadataProgressTimer = null;
   const assistantHistory = [];
 
   function icon() {
@@ -142,11 +143,15 @@
           <div class="pc-card pc-full"><div class="pc-card-h"><span>Metadaten-Duplikate</span><span class="pc-badge" id="pc-cleanup-badge"><span class="pc-dot"></span><span>Nicht geprüft</span></span></div><div class="pc-card-b">
             <div class="pc-muted" style="text-align:left">Codex erkennt Schreibvarianten und semantische Dubletten. Dokumenttypen und Tags werden bevorzugt auf klare deutsche Namen normalisiert. Ziel und Name kannst du vor jedem Merge ändern.</div>
             <div class="pc-actions"><button class="pc-btn pc-btn-primary" id="pc-cleanup-scan">Duplikate prüfen</button></div>
+            <div class="pc-progress"><span id="pc-cleanup-progress"></span></div>
+            <div class="pc-muted" id="pc-cleanup-progress-text" style="text-align:left;margin-top:6px">Bereit.</div>
             <div id="pc-cleanup-results" style="margin-top:12px"><div class="pc-cleanup-empty">Noch keine Prüfung durchgeführt.</div></div>
           </div></div>
           <div class="pc-card pc-full"><div class="pc-card-h"><span>0-Dokumente aufräumen</span><span class="pc-badge" id="pc-prune-badge"><span class="pc-dot"></span><span>Nicht geprüft</span></span></div><div class="pc-card-b">
             <div class="pc-muted" style="text-align:left">Findet ungenutzte Korrespondenten, Dokumenttypen und Tags. Vor dem Löschen wird jede Auswahl live gegen Paperless geprüft. Inbox-Tags, Eltern-Tags mit Untertags und explizite Matching-Regeln bleiben geschützt.</div>
             <div class="pc-actions"><button class="pc-btn pc-btn-primary" id="pc-prune-scan">0-Dokumente prüfen</button><button class="pc-btn" id="pc-prune-select-all" disabled>Alle sicheren auswählen</button><button class="pc-btn" id="pc-prune-run" disabled>Ausgewählte prunen</button></div>
+            <div class="pc-progress"><span id="pc-prune-progress"></span></div>
+            <div class="pc-muted" id="pc-prune-progress-text" style="text-align:left;margin-top:6px">Bereit.</div>
             <div id="pc-prune-results" style="margin-top:12px"><div class="pc-cleanup-empty">Noch keine Prüfung durchgeführt.</div></div>
           </div></div>
           <div class="pc-card pc-full pc-manual"><div class="pc-card-h"><span>Dokument erneut scannen</span><span class="pc-badge" id="pc-manual-badge"><span class="pc-dot"></span><span>Bereit</span></span></div><div class="pc-card-b">
@@ -195,15 +200,37 @@
     root.style.top = `${navRect && navRect.height > 20 ? Math.max(0, navRect.bottom) : 0}px`;
   }
 
-  function renderBulk(b = {}) {
+  function renderBulk(b = {}, systemStatus = {}, jobsData = {}) {
     const status = b.status || 'idle';
     const active = status === 'running', paused = status === 'paused';
+    const queued = Number(systemStatus.queued || 0);
+    const restoredQueue = status === 'idle' && Boolean(systemStatus.active) && queued > 0;
+    const jobs = Array.isArray(jobsData.jobs) ? jobsData.jobs : [];
+    const liveJob = jobs.slice().reverse().find(job => ['processing', 'retrying', 'waiting-paperless', 'waiting-usage-limit'].includes(String(job.status || '')));
+
+    if (restoredQueue) {
+      setBadge('pc-bulk-badge', 'warn', 'Queue wird fortgesetzt');
+      q('pc-progress').style.width = '0%';
+      q('pc-progress-text').textContent = `Fortgesetzte Queue nach Neustart · ${queued} Dokument(e) verbleiben. Kein neuer Komplettscan wurde gestartet.`;
+      q('pc-bulk-current').textContent = liveJob?.documentId ? `#${liveJob.documentId}` : '–';
+      q('pc-done').textContent = '–';
+      q('pc-ok').textContent = '–';
+      q('pc-review').textContent = '–';
+      q('pc-fail').textContent = '–';
+      q('pc-skip-count').textContent = '–';
+      q('pc-bulk-start').disabled = true;
+      q('pc-bulk-pause').disabled = true;
+      q('pc-bulk-resume').disabled = true;
+      q('pc-bulk-cancel').disabled = true;
+      return;
+    }
+
     setBadge('pc-bulk-badge', active || paused ? 'warn' : status === 'completed' ? 'ok' : status === 'cancelled' ? 'bad' : '', ({ idle: 'Bereit', running: 'Läuft', paused: 'Pausiert', completed: 'Fertig', cancelled: 'Abgebrochen' }[status] || status));
     const total = Number(b.total || 0), processed = Number(b.processed || 0), skipped = Number(b.skipped || 0);
     const pct = total ? Math.min(100, Math.round(((processed + skipped) / total) * 100)) : 0;
     q('pc-progress').style.width = `${pct}%`;
     q('pc-progress-text').textContent = total ? `${processed + skipped} / ${total} · ${pct}% · ${b.remaining ?? Math.max(0, total - processed - skipped)} verbleibend` : 'Noch nicht gestartet.';
-    q('pc-bulk-current').textContent = b.currentDocumentId ? `#${b.currentDocumentId}` : '–';
+    q('pc-bulk-current').textContent = b.currentDocumentId ? `#${b.currentDocumentId}` : (liveJob?.documentId ? `#${liveJob.documentId}` : '–');
     q('pc-done').textContent = processed; q('pc-ok').textContent = b.completed || 0; q('pc-review').textContent = b.review || 0; q('pc-fail').textContent = b.failed || 0; q('pc-skip-count').textContent = skipped;
     q('pc-bulk-start').disabled = active || paused; q('pc-bulk-pause').disabled = !active; q('pc-bulk-resume').disabled = !paused; q('pc-bulk-cancel').disabled = !(active || paused);
   }
@@ -317,17 +344,48 @@
     root.querySelectorAll('.pc-cleanup-merge').forEach(button => button.addEventListener('click', () => mergeMetadataGroup(button)));
   }
 
+  function renderOperationProgress(kind, state = {}) {
+    const progress = q(kind === 'audit' ? 'pc-cleanup-progress' : 'pc-prune-progress');
+    const text = q(kind === 'audit' ? 'pc-cleanup-progress-text' : 'pc-prune-progress-text');
+    if (!progress || !text) return;
+    const percent = Math.max(0, Math.min(100, Number(state.percent || 0)));
+    progress.style.width = `${percent}%`;
+    const count = Number(state.total || 0) > 0 ? ` · ${Number(state.current || 0)}/${Number(state.total || 0)}` : '';
+    text.textContent = `${state.phase || 'Bereit'} · ${percent}%${count}${state.detail ? ` · ${state.detail}` : ''}`;
+  }
+
+  async function pollMetadataProgress(kind, { untilInactive = false } = {}) {
+    clearInterval(metadataProgressTimer);
+    const tick = async () => {
+      try {
+        const data = await request('ui-api/assistant/metadata/progress', { timeout: 10000 });
+        const state = data?.[kind] || {};
+        renderOperationProgress(kind, state);
+        if (untilInactive && !state.active && Number(state.percent || 0) >= 100) {
+          clearInterval(metadataProgressTimer);
+          metadataProgressTimer = null;
+        }
+      } catch {}
+    };
+    await tick();
+    metadataProgressTimer = setInterval(tick, 900);
+  }
+
   async function loadMetadataAudit() {
     const button = q('pc-cleanup-scan');
     if (button) button.disabled = true;
     setBadge('pc-cleanup-badge', 'warn', 'Codex prüft…');
+    renderOperationProgress('audit', { phase: 'Startet', percent: 1 });
+    void pollMetadataProgress('audit', { untilInactive: true });
     try {
       const audit = await request('ui-api/assistant/metadata/audit', { timeout: 280000 });
       renderMetadataAudit(audit);
       const total = (audit.correspondents?.length || 0) + (audit.documentTypes?.length || 0) + (audit.tags?.length || 0);
       setBadge('pc-cleanup-badge', total ? 'warn' : 'ok', total ? `${total} Gruppen` : 'Sauber');
+      renderOperationProgress('audit', { phase: 'Fertig', percent: 100, detail: total ? `${total} Gruppen gefunden` : 'Keine Dubletten gefunden' });
     } catch (error) {
       setBadge('pc-cleanup-badge', 'bad', 'Fehler');
+      renderOperationProgress('audit', { phase: 'Fehler', percent: 100, detail: String(error.message || error) });
       showError(error);
     } finally {
       if (button) button.disabled = false;
@@ -405,14 +463,17 @@
     const button = q('pc-prune-scan');
     if (button) button.disabled = true;
     setBadge('pc-prune-badge', 'warn', 'Prüft…');
+    renderOperationProgress('prune', { phase: '0-Dokumente ermitteln', percent: 5 });
     try {
       const audit = await request('ui-api/assistant/metadata/unused', { timeout: 60000 });
       renderUnusedMetadata(audit);
       const safe = Number(audit.counts?.safe || 0);
       const protectedCount = Number(audit.counts?.protected || 0);
       setBadge('pc-prune-badge', safe ? 'warn' : 'ok', safe ? `${safe} prunebar` : (protectedCount ? 'Nur geschützte' : 'Sauber'));
+      renderOperationProgress('prune', { phase: 'Prüfung fertig', percent: 100, current: safe, total: safe, detail: `${safe} sicher prunebar · ${protectedCount} geschützt` });
     } catch (error) {
       setBadge('pc-prune-badge', 'bad', 'Fehler');
+      renderOperationProgress('prune', { phase: 'Fehler', percent: 100, detail: String(error.message || error) });
       showError(error);
     } finally {
       if (button) button.disabled = false;
@@ -437,6 +498,8 @@
     button.disabled = true;
     button.textContent = 'Prune läuft…';
     setBadge('pc-prune-badge', 'warn', 'Löscht…');
+    renderOperationProgress('prune', { phase: 'Startet', percent: 0, current: 0, total: items.length });
+    void pollMetadataProgress('prune', { untilInactive: true });
     try {
       const result = await request('ui-api/assistant/metadata/prune', {
         method: 'POST',
@@ -451,7 +514,16 @@
       } else {
         showError(null);
       }
+      const perItemFailures = (result.results || []).filter(item => !item.deleted && item.reason);
+      if (perItemFailures.length) {
+        const root = q('pc-prune-results');
+        const box = document.createElement('div');
+        box.className = 'pc-cleanup-group';
+        box.innerHTML = `<strong>Prune-Hinweise</strong><div class="pc-cleanup-names">${perItemFailures.slice(0, 20).map(item => `${esc(item.name || '#' + item.id)}: ${esc(item.reason)}`).join('<br>')}</div>`;
+        root?.prepend(box);
+      }
       setBadge('pc-prune-badge', failed ? 'bad' : 'ok', `${Number(result.deleted || 0)} gelöscht${skipped ? ` · ${skipped} übersprungen` : ''}`);
+      renderOperationProgress('prune', { phase: 'Fertig', percent: 100, current: items.length, total: items.length, detail: `${Number(result.deleted || 0)} gelöscht · ${skipped} übersprungen · ${failed} Fehler` });
       await loadUnusedMetadata();
     } catch (error) {
       setBadge('pc-prune-badge', 'bad', 'Fehler');
@@ -480,7 +552,7 @@
       const discovery = status.discovery || {};
       q('pc-discovery').textContent = discovery.enabled ? `Automatisch · alle ${Math.round((discovery.intervalMs || 60000) / 1000)} s${discovery.lastError ? ' · Fehler' : ''}` : 'Aus';
       renderProvenance(status.provenance || {});
-      renderBulk(bulk); renderJobs(jobs);
+      renderBulk(bulk, status, jobs); renderJobs(jobs);
     } catch (error) { showError(error); }
   }
 
