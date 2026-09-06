@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Paperless Codex
 // @namespace    https://github.com/Juloc/paperless-codex
-// @version      0.2.3
+// @version      0.3.0
 // @description  Integriert Paperless Codex direkt in die Paperless-ngx-Oberfläche.
 // @match        https://paperless.juloc.de/*
 // @match        https://www.paperless.juloc.de/*
@@ -22,6 +22,7 @@
   if (/^http:\/\/(?:127\.0\.0\.1|localhost):8484\/?$/i.test(previousUrl)) GM_setValue(KEY, DEFAULT_URL);
   let refreshTimer = null;
   let authTimer = null;
+  const assistantHistory = [];
 
   function icon() {
     return `<svg class="me-2" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -46,7 +47,7 @@
     return normalizedUrl(GM_getValue(KEY, ''));
   }
 
-  function request(path, { method = 'GET', body = null } = {}) {
+  function request(path, { method = 'GET', body = null, timeout = 20000 } = {}) {
     const base = getBaseUrl();
     if (!base) return Promise.reject(new Error('Codex-URL ist noch nicht eingerichtet.'));
     const url = new URL(path.replace(/^\//, ''), base).toString();
@@ -56,7 +57,7 @@
         url,
         headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
         data: body ? JSON.stringify(body) : undefined,
-        timeout: 20000,
+        timeout,
         onload(response) {
           let value = {};
           try { value = JSON.parse(response.responseText || '{}'); } catch {}
@@ -96,6 +97,10 @@
       .pc-config input,.pc-manual input{width:100%;padding:8px 10px;border:1px solid var(--bs-border-color,#ced4da);border-radius:.375rem;background:var(--bs-body-bg,#fff);color:inherit}.pc-manual-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}.pc-manual-result{margin-top:8px;text-align:left}
       .pc-error{margin-top:12px;padding:10px 12px;border:1px solid rgba(220,53,69,.35);border-radius:.375rem;color:#dc3545;display:none}.pc-auth{margin-top:12px;padding:12px;border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;display:none}.pc-code{font:600 1.35rem ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:1px;margin:8px 0}
       .pc-table{width:100%;border-collapse:collapse}.pc-table th,.pc-table td{padding:8px;border-bottom:1px solid var(--bs-border-color,#dee2e6);text-align:left}.pc-table th{font-size:.8rem;color:var(--bs-secondary-color,#6c757d)}
+      .pc-chat-log{min-height:190px;max-height:420px;overflow:auto;border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;padding:12px;background:var(--bs-body-bg,#fff)}
+      .pc-chat-empty{color:var(--bs-secondary-color,#6c757d)}.pc-msg{max-width:88%;padding:9px 11px;border-radius:.7rem;margin:7px 0;white-space:pre-wrap;overflow-wrap:anywhere}.pc-msg-user{margin-left:auto;background:var(--bs-primary,#0d6efd);color:#fff}.pc-msg-assistant{background:var(--bs-secondary-bg,#e9ecef)}
+      .pc-chat-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:10px;align-items:end}.pc-chat-form textarea{width:100%;min-height:76px;max-height:180px;resize:vertical;padding:9px 10px;border:1px solid var(--bs-border-color,#ced4da);border-radius:.375rem;background:var(--bs-body-bg,#fff);color:inherit}
+      .pc-cleanup-summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}.pc-cleanup-group{border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;padding:11px;margin-top:8px}.pc-cleanup-title{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.pc-cleanup-names{margin-top:6px;color:var(--bs-secondary-color,#6c757d)}.pc-cleanup-empty{color:var(--bs-secondary-color,#6c757d)}
       @media(max-width:800px){.pc-grid{grid-template-columns:1fr}.pc-card.pc-full{grid-column:auto}.pc-stats{grid-template-columns:repeat(2,1fr)}.pc-manual-form{grid-template-columns:1fr}#paperless-codex-panel{padding:14px}}
     `;
     document.head.appendChild(style);
@@ -128,6 +133,17 @@
             <div class="pc-row"><span>Schreibtest</span><span class="pc-muted" id="pc-selftest-state">Noch nicht ausgeführt</span></div>
             <div class="pc-actions"><button class="pc-btn" id="pc-selftest">Paperless-Selbsttest</button></div>
           </div>
+          <div class="pc-card pc-full pc-assistant"><div class="pc-card-h"><span>Codex Chat</span><span class="pc-badge" id="pc-assistant-badge"><span class="pc-dot"></span><span>Bereit</span></span></div><div class="pc-card-b">
+            <div class="pc-row"><span>Kontext</span><span class="pc-muted" id="pc-chat-context">Gesamtes Paperless</span></div>
+            <div class="pc-chat-log" id="pc-chat-log"><div class="pc-chat-empty">Frag z. B. nach einem Dokument, einer Rechnung oder bitte Codex, deine Korrespondenten und Dokumenttypen aufzuräumen.</div></div>
+            <div class="pc-chat-form"><textarea id="pc-chat-input" placeholder="Nach Dokumenten fragen oder Metadaten aufräumen…"></textarea><button class="pc-btn pc-btn-primary" id="pc-chat-send">Senden</button></div>
+            <div class="pc-actions"><button class="pc-btn" id="pc-chat-clean-correspondents">Korrespondenten aufräumen</button><button class="pc-btn" id="pc-chat-clean-types">Dokumenttypen aufräumen</button><button class="pc-btn" id="pc-chat-clean-tags">Tags aufräumen</button></div>
+          </div></div>
+          <div class="pc-card pc-full"><div class="pc-card-h"><span>Metadaten-Duplikate</span><span class="pc-badge" id="pc-cleanup-badge"><span class="pc-dot"></span><span>Nicht geprüft</span></span></div><div class="pc-card-b">
+            <div class="pc-muted" style="text-align:left">Codex erkennt ähnlich benannte Korrespondenten, Dokumenttypen und Tags. Zusammenführen passiert nur nach deiner Bestätigung.</div>
+            <div class="pc-actions"><button class="pc-btn pc-btn-primary" id="pc-cleanup-scan">Duplikate prüfen</button></div>
+            <div id="pc-cleanup-results" style="margin-top:12px"><div class="pc-cleanup-empty">Noch keine Prüfung durchgeführt.</div></div>
+          </div></div>
           <div class="pc-card pc-full pc-manual"><div class="pc-card-h"><span>Dokument erneut scannen</span><span class="pc-badge" id="pc-manual-badge"><span class="pc-dot"></span><span>Bereit</span></span></div><div class="pc-card-b">
             <div class="pc-manual-form"><label for="pc-document-id">Dokument-ID<input id="pc-document-id" type="number" min="1" step="1" inputmode="numeric" placeholder="z. B. 123"></label><button class="pc-btn pc-btn-primary" id="pc-rescan">Erneut scannen</button></div>
             <div class="pc-muted pc-manual-result" id="pc-manual-result">Öffnest du Codex auf einer Dokumentseite, wird die ID automatisch übernommen.</div>
@@ -206,6 +222,119 @@
     q('pc-selftest-state').textContent = test.ok
       ? `OK ✓ · Content ${test.contentWrite ? '✓' : '✗'} · Zusatzfeld ${test.customFieldWrite ? '✓' : '✗'}`
       : `Fehler ✗ · Content ${test.contentWrite ? '✓' : '✗'} · Zusatzfeld ${test.customFieldWrite ? '✓' : '✗'}`;
+  }
+
+  function updateAssistantContext() {
+    const id = currentPaperlessDocumentId();
+    const el = q('pc-chat-context');
+    if (el) el.textContent = id ? `Aktuelles Dokument #${id}` : 'Gesamtes Paperless';
+  }
+
+  function appendChat(role, content) {
+    const log = q('pc-chat-log');
+    if (!log) return;
+    log.querySelector('.pc-chat-empty')?.remove();
+    const item = document.createElement('div');
+    item.className = `pc-msg pc-msg-${role === 'user' ? 'user' : 'assistant'}`;
+    item.textContent = String(content || '');
+    log.appendChild(item);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  async function sendAssistantChat(preset = null) {
+    const input = q('pc-chat-input');
+    const message = String(preset || input?.value || '').trim();
+    if (!message) return;
+    if (input && !preset) input.value = '';
+    appendChat('user', message);
+    assistantHistory.push({ role: 'user', content: message });
+    while (assistantHistory.length > 12) assistantHistory.shift();
+    const button = q('pc-chat-send');
+    if (button) button.disabled = true;
+    setBadge('pc-assistant-badge', 'warn', 'Denkt…');
+    try {
+      const result = await request('ui-api/assistant/chat', {
+        method: 'POST',
+        timeout: 190000,
+        body: { message, documentId: currentPaperlessDocumentId(), history: assistantHistory.slice(0, -1) }
+      });
+      const suffix = Array.isArray(result.sources) && result.sources.length
+        ? `\n\nQuellen: ${result.sources.map(source => `#${source.id} ${source.title || ''}`).join(' · ')}`
+        : '';
+      appendChat('assistant', `${result.reply || 'Keine Antwort.'}${suffix}`);
+      assistantHistory.push({ role: 'assistant', content: result.reply || '' });
+      while (assistantHistory.length > 12) assistantHistory.shift();
+      setBadge('pc-assistant-badge', 'ok', 'Bereit');
+    } catch (error) {
+      appendChat('assistant', `Fehler: ${String(error.message || error)}`);
+      setBadge('pc-assistant-badge', 'bad', 'Fehler');
+      showError(error);
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  function cleanupKindLabel(kind) {
+    return ({ correspondent: 'Korrespondent', documentType: 'Dokumenttyp', tag: 'Tag' })[kind] || kind;
+  }
+
+  function cleanupSection(title, kind, groups) {
+    if (!groups.length) return `<div class="pc-cleanup-group"><strong>${esc(title)}</strong><div class="pc-cleanup-names">Keine offensichtlichen Duplikate.</div></div>`;
+    return `<div class="pc-cleanup-group"><strong>${esc(title)}</strong>${groups.map(group => {
+      const sources = group.sources || [];
+      return `<div class="pc-cleanup-group">
+        <div class="pc-cleanup-title"><div><strong>${esc(group.target?.name || '–')}</strong><div class="pc-cleanup-names">← ${sources.map(source => esc(source.name)).join(' · ')}</div><div class="pc-cleanup-names">${Number(group.totalDocuments || 0)} Dokumente · Ähnlichkeit ${Math.round(Number(group.confidence || 0) * 100)}%</div></div>
+        <button class="pc-btn pc-cleanup-merge" data-kind="${esc(kind)}" data-target="${esc(group.target?.id)}" data-sources="${esc(sources.map(source => source.id).join(','))}">Zusammenführen</button></div>
+      </div>`;
+    }).join('')}</div>`;
+  }
+
+  function renderMetadataAudit(audit = {}) {
+    const root = q('pc-cleanup-results');
+    if (!root) return;
+    const counts = audit.counts || {};
+    root.innerHTML = `<div class="pc-cleanup-summary"><span class="pc-badge">Korrespondenten ${esc(counts.correspondents || 0)}</span><span class="pc-badge">Typen ${esc(counts.documentTypes || 0)}</span><span class="pc-badge">Tags ${esc(counts.tags || 0)}</span></div>
+      ${cleanupSection('Korrespondenten', 'correspondent', audit.correspondents || [])}
+      ${cleanupSection('Dokumenttypen', 'documentType', audit.documentTypes || [])}
+      ${cleanupSection('Tags', 'tag', audit.tags || [])}`;
+    root.querySelectorAll('.pc-cleanup-merge').forEach(button => button.addEventListener('click', () => mergeMetadataGroup(button)));
+  }
+
+  async function loadMetadataAudit() {
+    const button = q('pc-cleanup-scan');
+    if (button) button.disabled = true;
+    setBadge('pc-cleanup-badge', 'warn', 'Prüft…');
+    try {
+      const audit = await request('ui-api/assistant/metadata/audit', { timeout: 60000 });
+      renderMetadataAudit(audit);
+      const total = (audit.correspondents?.length || 0) + (audit.documentTypes?.length || 0) + (audit.tags?.length || 0);
+      setBadge('pc-cleanup-badge', total ? 'warn' : 'ok', total ? `${total} Gruppen` : 'Sauber');
+    } catch (error) {
+      setBadge('pc-cleanup-badge', 'bad', 'Fehler');
+      showError(error);
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function mergeMetadataGroup(button) {
+    const kind = button.dataset.kind;
+    const targetId = Number(button.dataset.target);
+    const sourceIds = String(button.dataset.sources || '').split(',').map(Number).filter(Number.isInteger);
+    if (!targetId || !sourceIds.length) return;
+    const label = cleanupKindLabel(kind);
+    if (!window.confirm(`${label}-Duplikate wirklich zusammenführen? Dokumente werden auf den Ziel-Eintrag umgestellt und die alten Einträge danach gelöscht.`)) return;
+    button.disabled = true;
+    button.textContent = 'Wird zusammengeführt…';
+    try {
+      const result = await request('ui-api/assistant/metadata/merge', { method: 'POST', timeout: 180000, body: { kind, targetId, sourceIds, confirm: true } });
+      if (!result.ok) showError('Dokumente wurden umgestellt, aber mindestens ein alter Metadaten-Eintrag konnte nicht gelöscht werden.');
+      await loadMetadataAudit();
+    } catch (error) {
+      showError(error);
+      button.disabled = false;
+      button.textContent = 'Zusammenführen';
+    }
   }
 
   async function refresh() {
@@ -305,6 +434,12 @@
     q('pc-auth-open').onclick = () => { const url = q('pc-auth-open').dataset.url; if (url) window.open(url, '_blank', 'noopener,noreferrer'); };
     q('pc-auth-copy').onclick = () => navigator.clipboard?.writeText(q('pc-auth-code').textContent || '');
     q('pc-rescan').onclick = rescanDocument;
+    q('pc-chat-send').onclick = () => sendAssistantChat();
+    q('pc-chat-input').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendAssistantChat(); } });
+    q('pc-chat-clean-correspondents').onclick = () => sendAssistantChat('Prüfe meine Korrespondenten auf Duplikate und erkläre mir die auffälligsten Gruppen.');
+    q('pc-chat-clean-types').onclick = () => sendAssistantChat('Prüfe meine Dokumenttypen auf Duplikate und unnötige Varianten und erkläre mir die auffälligsten Gruppen.');
+    q('pc-chat-clean-tags').onclick = () => sendAssistantChat('Prüfe meine Tags auf Duplikate, Synonyme und unnötige Varianten und erkläre mir die auffälligsten Gruppen.');
+    q('pc-cleanup-scan').onclick = loadMetadataAudit;
     q('pc-document-id').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); rescanDocument(); } });
     q('pc-bulk-start').onclick = async () => { try { renderBulk(await request('ui-api/bulk/start', { method: 'POST', body: { skipCurrent: q('pc-skip').checked } })); } catch (e) { showError(e); } };
     q('pc-bulk-pause').onclick = async () => { try { renderBulk(await request('ui-api/bulk/pause', { method: 'POST', body: {} })); } catch (e) { showError(e); } };
@@ -318,6 +453,7 @@
     event?.preventDefault(); event?.stopPropagation();
     const root = panel(); updatePanelBounds(); root.classList.add('pc-open');
     const currentId = currentPaperlessDocumentId(); if (currentId) q('pc-document-id').value = String(currentId);
+    updateAssistantContext();
     document.getElementById('paperless-codex-menu-item')?.querySelector('a')?.classList.add('active');
     clearInterval(refreshTimer); refresh(); refreshTimer = setInterval(refresh, 10000);
   }
