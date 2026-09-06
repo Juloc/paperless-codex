@@ -69,9 +69,6 @@ replaceOnce(
 
   if (customName) {
     const exactExisting = items.find(item => normalizeName(item.name) === normalizeName(customName));
-    if (exactExisting && !requestedIds.includes(Number(exactExisting.id))) {
-      throw new Error(`The name "${customName}" already exists outside this merge group. Include that entry in the group instead.`);
-    }
     if (exactExisting && Number(exactExisting.id) !== Number(target.id)) {
       target = exactExisting;
       reusedExistingTarget = true;
