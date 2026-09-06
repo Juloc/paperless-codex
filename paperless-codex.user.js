@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Paperless Codex
 // @namespace    https://github.com/Juloc/paperless-codex
-// @version      0.3.1
+// @version      0.3.2
 // @description  Integriert Paperless Codex direkt in die Paperless-ngx-Oberfläche.
 // @match        https://paperless.juloc.de/*
 // @match        https://www.paperless.juloc.de/*
@@ -100,7 +100,7 @@
       .pc-chat-log{min-height:190px;max-height:420px;overflow:auto;border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;padding:12px;background:var(--bs-body-bg,#fff)}
       .pc-chat-empty{color:var(--bs-secondary-color,#6c757d)}.pc-msg{max-width:88%;padding:9px 11px;border-radius:.7rem;margin:7px 0;white-space:pre-wrap;overflow-wrap:anywhere}.pc-msg-user{margin-left:auto;background:var(--bs-primary,#0d6efd);color:#fff}.pc-msg-assistant{background:var(--bs-secondary-bg,#e9ecef)}
       .pc-chat-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:10px;align-items:end}.pc-chat-form textarea{width:100%;min-height:76px;max-height:180px;resize:vertical;padding:9px 10px;border:1px solid var(--bs-border-color,#ced4da);border-radius:.375rem;background:var(--bs-body-bg,#fff);color:inherit}
-      .pc-cleanup-summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}.pc-cleanup-group{border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;padding:11px;margin-top:8px}.pc-cleanup-title{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.pc-cleanup-names{margin-top:6px;color:var(--bs-secondary-color,#6c757d)}.pc-cleanup-empty{color:var(--bs-secondary-color,#6c757d)}.pc-cleanup-item{border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;padding:12px;margin-top:10px}.pc-cleanup-options{display:grid;gap:6px;margin-top:10px}.pc-cleanup-option{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem}.pc-cleanup-option>label{display:flex;align-items:center;gap:8px;min-width:0;flex:1}.pc-cleanup-option small{color:var(--bs-secondary-color,#6c757d)}.pc-cleanup-canonical{margin-top:10px}.pc-cleanup-canonical input{width:100%;padding:8px 10px;margin-top:5px;border:1px solid var(--bs-border-color,#ced4da);border-radius:.375rem;background:var(--bs-body-bg,#fff);color:inherit}
+      .pc-cleanup-summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}.pc-cleanup-group{border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;padding:11px;margin-top:8px}.pc-cleanup-title{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.pc-cleanup-names{margin-top:6px;color:var(--bs-secondary-color,#6c757d)}.pc-cleanup-empty{color:var(--bs-secondary-color,#6c757d)}.pc-cleanup-item{border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;padding:12px;margin-top:10px}.pc-cleanup-options{display:grid;gap:6px;margin-top:10px}.pc-cleanup-option{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem}.pc-cleanup-option>label{display:flex;align-items:center;gap:8px;min-width:0;flex:1}.pc-cleanup-option small{color:var(--bs-secondary-color,#6c757d)}.pc-cleanup-canonical{margin-top:10px}.pc-cleanup-canonical input{width:100%;padding:8px 10px;margin-top:5px;border:1px solid var(--bs-border-color,#ced4da);border-radius:.375rem;background:var(--bs-body-bg,#fff);color:inherit}.pc-prune-list{display:grid;gap:6px;margin-top:10px}.pc-prune-entry{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem}.pc-prune-entry label{display:flex;align-items:center;gap:8px;min-width:0;flex:1}.pc-prune-entry small{color:var(--bs-secondary-color,#6c757d);text-align:right}.pc-prune-entry.pc-protected{opacity:.72}
       @media(max-width:800px){.pc-grid{grid-template-columns:1fr}.pc-card.pc-full{grid-column:auto}.pc-stats{grid-template-columns:repeat(2,1fr)}.pc-manual-form{grid-template-columns:1fr}#paperless-codex-panel{padding:14px}}
     `;
     document.head.appendChild(style);
@@ -143,6 +143,11 @@
             <div class="pc-muted" style="text-align:left">Codex erkennt Schreibvarianten und semantische Dubletten. Dokumenttypen und Tags werden bevorzugt auf klare deutsche Namen normalisiert. Ziel und Name kannst du vor jedem Merge ändern.</div>
             <div class="pc-actions"><button class="pc-btn pc-btn-primary" id="pc-cleanup-scan">Duplikate prüfen</button></div>
             <div id="pc-cleanup-results" style="margin-top:12px"><div class="pc-cleanup-empty">Noch keine Prüfung durchgeführt.</div></div>
+          </div></div>
+          <div class="pc-card pc-full"><div class="pc-card-h"><span>0-Dokumente aufräumen</span><span class="pc-badge" id="pc-prune-badge"><span class="pc-dot"></span><span>Nicht geprüft</span></span></div><div class="pc-card-b">
+            <div class="pc-muted" style="text-align:left">Findet ungenutzte Korrespondenten, Dokumenttypen und Tags. Vor dem Löschen wird jede Auswahl live gegen Paperless geprüft. Inbox-Tags, Eltern-Tags mit Untertags und explizite Matching-Regeln bleiben geschützt.</div>
+            <div class="pc-actions"><button class="pc-btn pc-btn-primary" id="pc-prune-scan">0-Dokumente prüfen</button><button class="pc-btn" id="pc-prune-select-all" disabled>Alle sicheren auswählen</button><button class="pc-btn" id="pc-prune-run" disabled>Ausgewählte prunen</button></div>
+            <div id="pc-prune-results" style="margin-top:12px"><div class="pc-cleanup-empty">Noch keine Prüfung durchgeführt.</div></div>
           </div></div>
           <div class="pc-card pc-full pc-manual"><div class="pc-card-h"><span>Dokument erneut scannen</span><span class="pc-badge" id="pc-manual-badge"><span class="pc-dot"></span><span>Bereit</span></span></div><div class="pc-card-b">
             <div class="pc-manual-form"><label for="pc-document-id">Dokument-ID<input id="pc-document-id" type="number" min="1" step="1" inputmode="numeric" placeholder="z. B. 123"></label><button class="pc-btn pc-btn-primary" id="pc-rescan">Erneut scannen</button></div>
@@ -361,6 +366,101 @@
     }
   }
 
+  function pruneSection(title, kind, items) {
+    if (!items.length) return `<div class="pc-cleanup-group"><strong>${esc(title)}</strong><div class="pc-cleanup-names">Keine Einträge mit 0 Dokumenten.</div></div>`;
+    return `<div class="pc-cleanup-group"><strong>${esc(title)}</strong><div class="pc-prune-list">${items.map(item => {
+      const protectedText = item.protected ? `Geschützt: ${item.protectedReason || 'Systemeintrag'}` : '0 Dokumente';
+      return `<div class="pc-prune-entry ${item.protected ? 'pc-protected' : ''}">
+        <label><input class="pc-prune-checkbox" type="checkbox" data-kind="${esc(kind)}" data-id="${esc(item.id)}" data-name="${esc(item.name)}" ${item.protected ? 'disabled' : ''}><span>${esc(item.name)}</span></label>
+        <small>${esc(protectedText)}</small>
+      </div>`;
+    }).join('')}</div></div>`;
+  }
+
+  function updatePruneButtons() {
+    const available = [...document.querySelectorAll('.pc-prune-checkbox:not(:disabled)')];
+    const selected = available.filter(input => input.checked);
+    const selectAll = q('pc-prune-select-all');
+    const run = q('pc-prune-run');
+    if (selectAll) selectAll.disabled = !available.length;
+    if (run) {
+      run.disabled = !selected.length;
+      run.textContent = selected.length ? `Ausgewählte prunen (${selected.length})` : 'Ausgewählte prunen';
+    }
+  }
+
+  function renderUnusedMetadata(audit = {}) {
+    const root = q('pc-prune-results');
+    if (!root) return;
+    const counts = audit.counts || {};
+    root.innerHTML = `<div class="pc-cleanup-summary"><span class="pc-badge">Sicher ${esc(counts.safe || 0)}</span><span class="pc-badge">Geschützt ${esc(counts.protected || 0)}</span><span class="pc-badge">Korrespondenten ${esc(counts.correspondents || 0)}</span><span class="pc-badge">Typen ${esc(counts.documentTypes || 0)}</span><span class="pc-badge">Tags ${esc(counts.tags || 0)}</span></div>
+      ${pruneSection('Korrespondenten', 'correspondent', audit.correspondents || [])}
+      ${pruneSection('Dokumenttypen', 'documentType', audit.documentTypes || [])}
+      ${pruneSection('Tags', 'tag', audit.tags || [])}`;
+    root.querySelectorAll('.pc-prune-checkbox').forEach(input => input.addEventListener('change', updatePruneButtons));
+    updatePruneButtons();
+  }
+
+  async function loadUnusedMetadata() {
+    const button = q('pc-prune-scan');
+    if (button) button.disabled = true;
+    setBadge('pc-prune-badge', 'warn', 'Prüft…');
+    try {
+      const audit = await request('ui-api/assistant/metadata/unused', { timeout: 60000 });
+      renderUnusedMetadata(audit);
+      const safe = Number(audit.counts?.safe || 0);
+      const protectedCount = Number(audit.counts?.protected || 0);
+      setBadge('pc-prune-badge', safe ? 'warn' : 'ok', safe ? `${safe} prunebar` : (protectedCount ? 'Nur geschützte' : 'Sauber'));
+    } catch (error) {
+      setBadge('pc-prune-badge', 'bad', 'Fehler');
+      showError(error);
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  function selectAllUnusedSafe() {
+    document.querySelectorAll('.pc-prune-checkbox:not(:disabled)').forEach(input => { input.checked = true; });
+    updatePruneButtons();
+  }
+
+  async function pruneUnusedSelected() {
+    const selected = [...document.querySelectorAll('.pc-prune-checkbox:checked:not(:disabled)')];
+    if (!selected.length) return;
+    const items = selected.map(input => ({ kind: input.dataset.kind, id: Number(input.dataset.id) }));
+    const names = selected.map(input => input.dataset.name || `#${input.dataset.id}`);
+    const preview = names.slice(0, 12).join('\n');
+    const rest = names.length > 12 ? `\n… und ${names.length - 12} weitere` : '';
+    if (!window.confirm(`${items.length} ungenutzte Metadaten-Einträge wirklich löschen?\n\n${preview}${rest}\n\nJeder Eintrag wird direkt vor dem Löschen erneut auf 0 Dokumente geprüft.`)) return;
+
+    const button = q('pc-prune-run');
+    button.disabled = true;
+    button.textContent = 'Prune läuft…';
+    setBadge('pc-prune-badge', 'warn', 'Löscht…');
+    try {
+      const result = await request('ui-api/assistant/metadata/prune', {
+        method: 'POST',
+        timeout: 180000,
+        body: { items, confirm: true }
+      });
+      const failed = Number(result.failed || 0);
+      const skipped = Number(result.skipped || 0);
+      if (failed) {
+        const details = (result.results || []).filter(item => !item.deleted && !item.skipped).slice(0, 8).map(item => `${item.name || item.id}: ${item.reason || 'Fehler'}`).join(' · ');
+        showError(`${failed} Einträge konnten nicht gelöscht werden. ${details}`);
+      } else {
+        showError(null);
+      }
+      setBadge('pc-prune-badge', failed ? 'bad' : 'ok', `${Number(result.deleted || 0)} gelöscht${skipped ? ` · ${skipped} übersprungen` : ''}`);
+      await loadUnusedMetadata();
+    } catch (error) {
+      setBadge('pc-prune-badge', 'bad', 'Fehler');
+      showError(error);
+    } finally {
+      updatePruneButtons();
+    }
+  }
+
   async function refresh() {
     if (!getBaseUrl()) { q('pc-url').value = ''; showError('Bitte zuerst die Codex-URL unten eintragen.'); return; }
     q('pc-url').value = getBaseUrl();
@@ -464,6 +564,9 @@
     q('pc-chat-clean-types').onclick = () => sendAssistantChat('Prüfe meine Dokumenttypen auf Duplikate und unnötige Varianten und erkläre mir die auffälligsten Gruppen.');
     q('pc-chat-clean-tags').onclick = () => sendAssistantChat('Prüfe meine Tags auf Duplikate, Synonyme und unnötige Varianten und erkläre mir die auffälligsten Gruppen.');
     q('pc-cleanup-scan').onclick = loadMetadataAudit;
+    q('pc-prune-scan').onclick = loadUnusedMetadata;
+    q('pc-prune-select-all').onclick = selectAllUnusedSafe;
+    q('pc-prune-run').onclick = pruneUnusedSelected;
     q('pc-document-id').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); rescanDocument(); } });
     q('pc-bulk-start').onclick = async () => { try { renderBulk(await request('ui-api/bulk/start', { method: 'POST', body: { skipCurrent: q('pc-skip').checked } })); } catch (e) { showError(e); } };
     q('pc-bulk-pause').onclick = async () => { try { renderBulk(await request('ui-api/bulk/pause', { method: 'POST', body: {} })); } catch (e) { showError(e); } };
