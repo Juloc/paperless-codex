@@ -1,6 +1,6 @@
 services:
   paperless-codex:
-    image: ghcr.io/juloc/paperless-codex:${PAPERLESS_CODEX_VERSION:-0.2.6}
+    image: ghcr.io/juloc/paperless-codex:${PAPERLESS_CODEX_VERSION:-0.2.7}
     restart: unless-stopped
     depends_on:
       - webserver
@@ -13,8 +13,8 @@ services:
       CODEX_HOME: /data/codex
       CODEX_WORKDIR: /tmp/paperless-codex
       STATE_DIR: /data/state
-      PAPERLESS_CODEX_VERSION: ${PAPERLESS_CODEX_VERSION:-0.2.6}
-      PAPERLESS_CODEX_PIPELINE_VERSION: "19"
+      PAPERLESS_CODEX_VERSION: ${PAPERLESS_CODEX_VERSION:-0.2.7}
+      PAPERLESS_CODEX_PIPELINE_VERSION: "20"
       PROVENANCE_TAGS: "false"
       PROVENANCE_CUSTOM_FIELD: "true"
       PROVENANCE_FIELD_NAME: AI Provenienz
