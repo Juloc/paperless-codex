@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Paperless Codex
 // @namespace    https://github.com/Juloc/paperless-codex
-// @version      0.3.6
+// @version      0.3.7
 // @description  Integriert Paperless Codex direkt in die Paperless-ngx-Oberfläche.
 // @match        https://paperless.juloc.de/*
 // @match        https://www.paperless.juloc.de/*
@@ -209,10 +209,15 @@
     const jobs = Array.isArray(jobsData.jobs) ? jobsData.jobs : [];
     const liveJob = jobs.find(job => ['processing', 'retrying', 'waiting-paperless', 'waiting-usage-limit'].includes(String(job.status || '')));
 
-    const badgeText = restored && (active || paused)
-      ? (paused ? 'Fortgesetzte Queue pausiert' : 'Queue wird fortgesetzt')
-      : ({ idle: 'Bereit', running: 'Läuft', paused: 'Pausiert', completed: 'Fertig', cancelled: 'Abgebrochen' }[status] || status);
-    setBadge('pc-bulk-badge', active || paused ? 'warn' : status === 'completed' ? 'ok' : status === 'cancelled' ? 'bad' : '', badgeText);
+    const maintenance = b.maintenance || {};
+    const maintenanceActive = Boolean(maintenance.active);
+    const maintenanceLabel = maintenance.kind === 'merge' ? 'Merge' : maintenance.kind === 'prune' ? 'Prune' : 'Metadatenpflege';
+    const badgeText = maintenanceActive
+      ? `${maintenanceLabel} · Scan pausiert`
+      : restored && (active || paused)
+        ? (paused ? 'Fortgesetzte Queue pausiert' : 'Queue wird fortgesetzt')
+        : ({ idle: 'Bereit', running: 'Läuft', paused: 'Pausiert', completed: 'Fertig', cancelled: 'Abgebrochen' }[status] || status);
+    setBadge('pc-bulk-badge', maintenanceActive || active || paused ? 'warn' : status === 'completed' ? 'ok' : status === 'cancelled' ? 'bad' : '', badgeText);
 
     const total = Number(b.total || 0);
     const processed = Number(b.processed || 0);
@@ -223,7 +228,7 @@
     q('pc-progress').style.width = `${pct}%`;
     if (total) {
       const prefix = restored && b.reconstructed ? 'Seit Wiederaufnahme' : (restored ? 'Fortgesetzter Scan' : 'Bulk-Scan');
-      const pauseText = paused ? ' · pausiert' : '';
+      const pauseText = maintenanceActive ? ` · automatisch pausiert wegen ${maintenanceLabel}` : (paused ? ' · pausiert' : '');
       q('pc-progress-text').textContent = `${prefix}: ${done} / ${total} · ${pct}% · ${pendingQueue} in Queue${pauseText}`;
     } else if (pendingQueue) {
       q('pc-progress-text').textContent = `${pendingQueue} Dokument(e) in der Queue${paused ? ' · pausiert' : ''}`;
@@ -238,9 +243,9 @@
     q('pc-fail').textContent = b.failed || 0;
     q('pc-skip-count').textContent = skipped;
 
-    q('pc-bulk-start').disabled = pendingQueue > 0 || active || paused;
-    q('pc-bulk-pause').disabled = !active;
-    q('pc-bulk-resume').disabled = !paused;
+    q('pc-bulk-start').disabled = pendingQueue > 0 || active || paused || maintenanceActive;
+    q('pc-bulk-pause').disabled = !active || maintenanceActive;
+    q('pc-bulk-resume').disabled = !paused || maintenanceActive;
     q('pc-bulk-cancel').disabled = pendingQueue <= 0;
   }
 
