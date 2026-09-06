@@ -26,6 +26,7 @@ COPY patch-pipeline16.mjs ./patch-pipeline16.mjs
 COPY patch-pipeline17.mjs ./patch-pipeline17.mjs
 COPY patch-pipeline18.mjs ./patch-pipeline18.mjs
 COPY patch-pipeline19.mjs ./patch-pipeline19.mjs
+COPY patch-pipeline20.mjs ./patch-pipeline20.mjs
 COPY ui-server.mjs ./ui-server.mjs
 COPY paperless-codex.user.js ./paperless-codex.user.js
 COPY ui-v2.html ./ui.html
@@ -47,10 +48,11 @@ RUN node ./patch-pipeline3.mjs \
     && node ./patch-pipeline17.mjs \
     && node ./patch-pipeline18.mjs \
     && node ./patch-pipeline19.mjs \
+    && node ./patch-pipeline20.mjs \
     && node --check ./server.mjs \
     && node --check ./ui-server.mjs \
     && node --check ./paperless-codex.user.js \
-    && rm ./patch-pipeline3.mjs ./patch-pipeline4.mjs ./patch-pipeline5.mjs ./patch-pipeline6.mjs ./patch-pipeline7.mjs ./patch-pipeline8.mjs ./patch-pipeline9.mjs ./patch-pipeline10.mjs ./patch-pipeline11.mjs ./patch-pipeline12.mjs ./patch-pipeline13.mjs ./patch-pipeline14.mjs ./patch-pipeline15.mjs ./patch-pipeline16.mjs ./patch-pipeline17.mjs ./patch-pipeline18.mjs ./patch-pipeline19.mjs ./paperless-codex.user.js \
+    && rm ./patch-pipeline3.mjs ./patch-pipeline4.mjs ./patch-pipeline5.mjs ./patch-pipeline6.mjs ./patch-pipeline7.mjs ./patch-pipeline8.mjs ./patch-pipeline9.mjs ./patch-pipeline10.mjs ./patch-pipeline11.mjs ./patch-pipeline12.mjs ./patch-pipeline13.mjs ./patch-pipeline14.mjs ./patch-pipeline15.mjs ./patch-pipeline16.mjs ./patch-pipeline17.mjs ./patch-pipeline18.mjs ./patch-pipeline19.mjs ./patch-pipeline20.mjs ./paperless-codex.user.js \
     && chmod 0755 /usr/local/bin/codex \
     && mkdir -p /data/codex /data/state /tmp/paperless-codex \
     && chown -R node:node /data /tmp/paperless-codex /app
@@ -61,8 +63,8 @@ ENV NODE_ENV=production \
     CODEX_HOME=/data/codex \
     CODEX_WORKDIR=/tmp/paperless-codex \
     STATE_DIR=/data/state \
-    PAPERLESS_CODEX_VERSION=0.2.6 \
-    PAPERLESS_CODEX_PIPELINE_VERSION=19
+    PAPERLESS_CODEX_VERSION=0.2.7 \
+    PAPERLESS_CODEX_PIPELINE_VERSION=20
 
 USER node
 EXPOSE 8080
