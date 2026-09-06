@@ -10,8 +10,8 @@ function replaceOnce(label, before, after) {
 
 replaceOnce(
   'merge progress state',
-  "    \"  prune: { active: false, phase: 'idle', percent: 0, current: 0, total: 0, detail: null, startedAt: null, finishedAt: null, error: null }\",",
-  "    \"  prune: { active: false, phase: 'idle', percent: 0, current: 0, total: 0, detail: null, startedAt: null, finishedAt: null, error: null },\",\n    \"  merge: { active: false, phase: 'idle', percent: 0, current: 0, total: 0, detail: null, startedAt: null, finishedAt: null, error: null }\","
+  "  prune: { active: false, phase: 'idle', percent: 0, current: 0, total: 0, detail: null, startedAt: null, finishedAt: null, error: null }\n};",
+  "  prune: { active: false, phase: 'idle', percent: 0, current: 0, total: 0, detail: null, startedAt: null, finishedAt: null, error: null },\n  merge: { active: false, phase: 'idle', percent: 0, current: 0, total: 0, detail: null, startedAt: null, finishedAt: null, error: null }\n};"
 );
 
 const start = source.indexOf('async function mergeMetadata(');
