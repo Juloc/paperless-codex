@@ -63,8 +63,8 @@ replaceOnce(
 );
 
 const auditStart = source.indexOf('async function metadataAudit() {');
-const auditEnd = source.indexOf('\n\nfunction metadataMergeSpec', auditStart);
-if (auditStart < 0 || auditEnd < 0) throw new Error('Pipeline 17 patch failed: metadataAudit range not found');
+const auditEnd = source.indexOf('\n\nfunction unusedMetadataProtection', auditStart);
+if (auditStart < 0 || auditEnd < 0) throw new Error('Pipeline 17 patch failed: metadataAudit range not found before unused-metadata helpers');
 
 const auditReplacement = [
   "function setMetadataProgress(kind, patch = {}) {",
