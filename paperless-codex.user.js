@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Paperless Codex
 // @namespace    https://github.com/Juloc/paperless-codex
-// @version      0.3.3
+// @version      0.3.4
 // @description  Integriert Paperless Codex direkt in die Paperless-ngx-Oberfläche.
 // @match        https://paperless.juloc.de/*
 // @match        https://www.paperless.juloc.de/*
@@ -326,6 +326,8 @@
           <input class="pc-cleanup-target-name" type="text" maxlength="128" value="${esc(suggestedName)}" placeholder="z. B. Allgemeine Geschäftsbedingungen">
         </label>
         <div class="pc-actions"><button class="pc-btn pc-btn-primary pc-cleanup-merge" data-kind="${esc(kind)}" data-all-ids="${esc(candidates.map(candidate => candidate.id).join(','))}">Auswahl zusammenführen</button></div>
+        <div class="pc-progress"><span class="pc-merge-progress"></span></div>
+        <div class="pc-muted pc-merge-progress-text" style="text-align:left;margin-top:6px">Bereit.</div>
       </div>`;
     }).join('')}</div>`;
   }
@@ -392,6 +394,34 @@
     }
   }
 
+  function renderMergeProgress(item, state = {}) {
+    if (!item) return;
+    const progress = item.querySelector('.pc-merge-progress');
+    const text = item.querySelector('.pc-merge-progress-text');
+    if (!progress || !text) return;
+    const percent = Math.max(0, Math.min(100, Number(state.percent || 0)));
+    progress.style.width = `${percent}%`;
+    const count = Number(state.total || 0) > 0 ? ` · ${Number(state.current || 0)}/${Number(state.total || 0)} Dokumente` : '';
+    text.textContent = `${state.phase || 'Bereit'} · ${percent}%${count}${state.detail ? ` · ${state.detail}` : ''}`;
+  }
+
+  async function pollMergeProgress(item) {
+    clearInterval(metadataProgressTimer);
+    const tick = async () => {
+      try {
+        const data = await request('ui-api/assistant/metadata/progress', { timeout: 10000 });
+        const state = data?.merge || {};
+        renderMergeProgress(item, state);
+        if (!state.active && Number(state.percent || 0) >= 100) {
+          clearInterval(metadataProgressTimer);
+          metadataProgressTimer = null;
+        }
+      } catch {}
+    };
+    await tick();
+    metadataProgressTimer = setInterval(tick, 700);
+  }
+
   async function mergeMetadataGroup(button) {
     const item = button.closest('.pc-cleanup-item');
     if (!item) return;
@@ -405,22 +435,46 @@
     const selectedName = item.querySelector('input[type="radio"]:checked')?.closest('label')?.textContent?.trim() || `#${targetId}`;
     const finalName = targetName || selectedName;
     const label = cleanupKindLabel(kind);
-    if (!window.confirm(`${label}-Gruppe wirklich zusammenführen?\n\nZiel: ${selectedName}\nKanonischer Name: ${finalName}\nZu entfernende Varianten: ${sourceIds.length}\n\nDokumente werden zuerst auf das Ziel umgestellt und erst danach werden die alten Einträge gelöscht.`)) return;
+    if (!window.confirm(`${label}-Gruppe wirklich zusammenführen?\n\nZiel: ${selectedName}\nKanonischer Name: ${finalName}\nZu entfernende Varianten: ${sourceIds.length}\n\nPaperless stellt die Metadaten per Bulk-Edit um. Dateinamen und Index werden anschließend im Hintergrund aktualisiert.`)) return;
 
-    button.disabled = true;
+    const controls = [...item.querySelectorAll('input,button')];
+    controls.forEach(control => { control.disabled = true; });
     button.textContent = 'Wird zusammengeführt…';
+    renderMergeProgress(item, { phase: 'Startet', percent: 1, detail: `${selectedName} → ${finalName}` });
+    setBadge('pc-cleanup-badge', 'warn', 'Merge läuft');
+    void pollMergeProgress(item);
+
     try {
       const result = await request('ui-api/assistant/metadata/merge', {
         method: 'POST',
-        timeout: 180000,
+        timeout: 300000,
         body: { kind, targetId, sourceIds, targetName, confirm: true }
       });
-      if (!result.ok) showError('Dokumente wurden umgestellt, aber mindestens ein alter Metadaten-Eintrag konnte nicht gelöscht werden.');
-      await loadMetadataAudit();
+
+      const failedDeletes = (result.details || []).filter(detail => !detail.deleted);
+      if (failedDeletes.length) {
+        showError(`${failedDeletes.length} alte Metadaten-Einträge konnten nach dem Umstellen nicht gelöscht werden. Die Dokumente wurden bereits auf das Ziel gesetzt.`);
+      } else {
+        showError(null);
+      }
+
+      renderMergeProgress(item, {
+        phase: result.ok ? 'Zusammengeführt' : 'Teilweise abgeschlossen',
+        percent: 100,
+        current: Number(result.movedDocuments || 0),
+        total: Number(result.movedDocuments || 0),
+        detail: `${Number(result.movedDocuments || 0)} Dokument(e) umgestellt${result.backgroundUpdatesQueued ? ' · Paperless verarbeitet Dateinamen/Index im Hintergrund' : ''}`
+      });
+
+      button.textContent = result.ok ? 'Zusammengeführt ✓' : 'Teilweise fertig';
+      item.style.opacity = result.ok ? '0.68' : '1';
+      setBadge('pc-cleanup-badge', 'warn', 'Geändert · neu prüfen');
     } catch (error) {
       showError(error);
-      button.disabled = false;
+      renderMergeProgress(item, { phase: 'Fehler', percent: 100, detail: String(error.message || error) });
+      controls.forEach(control => { control.disabled = false; });
       button.textContent = 'Auswahl zusammenführen';
+      setBadge('pc-cleanup-badge', 'bad', 'Merge-Fehler');
     }
   }
 
