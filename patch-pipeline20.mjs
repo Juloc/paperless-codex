@@ -105,19 +105,8 @@ source = source.slice(0, cancelStart) + cancelReplacement + source.slice(cancelE
 
 replaceOnce(
   'global queue pause gate',
-  [
-    "      const documentId = Number(queue[0]);",
-    "      while (bulkDocumentIds.has(documentId) && bulkScan.status === 'paused') await new Promise(resolve => setTimeout(resolve, 1000));",
-    "      const job = jobs.get(documentId) || { documentId, queuedAt: null, attempt: 0, source: 'fortgesetzt' };",
-    "      if (bulkDocumentIds.has(documentId)) bulkScan.currentDocumentId = documentId;"
-  ].join('\n'),
-  [
-    "      while (queuePaused && queue.length) await new Promise(resolve => setTimeout(resolve, 500));",
-    "      if (!queue.length) break;",
-    "      const documentId = Number(queue[0]);",
-    "      const job = jobs.get(documentId) || { documentId, queuedAt: null, attempt: 0, source: bulkScan.restored ? 'fortgesetzt' : (bulkDocumentIds.has(documentId) ? 'bulk' : 'queue') };",
-    "      if (bulkDocumentIds.has(documentId)) bulkScan.currentDocumentId = documentId;"
-  ].join('\n')
+  "      while (bulkDocumentIds.has(documentId) && bulkScan.status === 'paused') await new Promise(resolve => setTimeout(resolve, 1000));",
+  "      while (queuePaused && queue.length) await new Promise(resolve => setTimeout(resolve, 500));\n      if (!queue.length) break;"
 );
 
 replaceOnce(
