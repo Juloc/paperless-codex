@@ -15,11 +15,6 @@ on:
 
 
 
-  push:
-    branches:
-      - main
-    paths:
-      - .release-0.2.6
 
 permissions:
   contents: read
@@ -41,5 +36,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/juloc/paperless-codex:${{ github.event_name == 'workflow_dispatch' && inputs.version || '0.2.6' }}
+            ghcr.io/juloc/paperless-codex:${{ inputs.version }}
             ghcr.io/juloc/paperless-codex:latest
