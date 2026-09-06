@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Paperless Codex
 // @namespace    https://github.com/Juloc/paperless-codex
-// @version      0.3.0
+// @version      0.3.1
 // @description  Integriert Paperless Codex direkt in die Paperless-ngx-Oberfläche.
 // @match        https://paperless.juloc.de/*
 // @match        https://www.paperless.juloc.de/*
@@ -100,7 +100,7 @@
       .pc-chat-log{min-height:190px;max-height:420px;overflow:auto;border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;padding:12px;background:var(--bs-body-bg,#fff)}
       .pc-chat-empty{color:var(--bs-secondary-color,#6c757d)}.pc-msg{max-width:88%;padding:9px 11px;border-radius:.7rem;margin:7px 0;white-space:pre-wrap;overflow-wrap:anywhere}.pc-msg-user{margin-left:auto;background:var(--bs-primary,#0d6efd);color:#fff}.pc-msg-assistant{background:var(--bs-secondary-bg,#e9ecef)}
       .pc-chat-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:10px;align-items:end}.pc-chat-form textarea{width:100%;min-height:76px;max-height:180px;resize:vertical;padding:9px 10px;border:1px solid var(--bs-border-color,#ced4da);border-radius:.375rem;background:var(--bs-body-bg,#fff);color:inherit}
-      .pc-cleanup-summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}.pc-cleanup-group{border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;padding:11px;margin-top:8px}.pc-cleanup-title{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.pc-cleanup-names{margin-top:6px;color:var(--bs-secondary-color,#6c757d)}.pc-cleanup-empty{color:var(--bs-secondary-color,#6c757d)}
+      .pc-cleanup-summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}.pc-cleanup-group{border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;padding:11px;margin-top:8px}.pc-cleanup-title{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.pc-cleanup-names{margin-top:6px;color:var(--bs-secondary-color,#6c757d)}.pc-cleanup-empty{color:var(--bs-secondary-color,#6c757d)}.pc-cleanup-item{border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;padding:12px;margin-top:10px}.pc-cleanup-options{display:grid;gap:6px;margin-top:10px}.pc-cleanup-option{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem}.pc-cleanup-option>label{display:flex;align-items:center;gap:8px;min-width:0;flex:1}.pc-cleanup-option small{color:var(--bs-secondary-color,#6c757d)}.pc-cleanup-canonical{margin-top:10px}.pc-cleanup-canonical input{width:100%;padding:8px 10px;margin-top:5px;border:1px solid var(--bs-border-color,#ced4da);border-radius:.375rem;background:var(--bs-body-bg,#fff);color:inherit}
       @media(max-width:800px){.pc-grid{grid-template-columns:1fr}.pc-card.pc-full{grid-column:auto}.pc-stats{grid-template-columns:repeat(2,1fr)}.pc-manual-form{grid-template-columns:1fr}#paperless-codex-panel{padding:14px}}
     `;
     document.head.appendChild(style);
@@ -140,7 +140,7 @@
             <div class="pc-actions"><button class="pc-btn" id="pc-chat-clean-correspondents">Korrespondenten aufräumen</button><button class="pc-btn" id="pc-chat-clean-types">Dokumenttypen aufräumen</button><button class="pc-btn" id="pc-chat-clean-tags">Tags aufräumen</button></div>
           </div></div>
           <div class="pc-card pc-full"><div class="pc-card-h"><span>Metadaten-Duplikate</span><span class="pc-badge" id="pc-cleanup-badge"><span class="pc-dot"></span><span>Nicht geprüft</span></span></div><div class="pc-card-b">
-            <div class="pc-muted" style="text-align:left">Codex erkennt ähnlich benannte Korrespondenten, Dokumenttypen und Tags. Zusammenführen passiert nur nach deiner Bestätigung.</div>
+            <div class="pc-muted" style="text-align:left">Codex erkennt Schreibvarianten und semantische Dubletten. Dokumenttypen und Tags werden bevorzugt auf klare deutsche Namen normalisiert. Ziel und Name kannst du vor jedem Merge ändern.</div>
             <div class="pc-actions"><button class="pc-btn pc-btn-primary" id="pc-cleanup-scan">Duplikate prüfen</button></div>
             <div id="pc-cleanup-results" style="margin-top:12px"><div class="pc-cleanup-empty">Noch keine Prüfung durchgeführt.</div></div>
           </div></div>
@@ -280,11 +280,20 @@
 
   function cleanupSection(title, kind, groups) {
     if (!groups.length) return `<div class="pc-cleanup-group"><strong>${esc(title)}</strong><div class="pc-cleanup-names">Keine offensichtlichen Duplikate.</div></div>`;
-    return `<div class="pc-cleanup-group"><strong>${esc(title)}</strong>${groups.map(group => {
-      const sources = group.sources || [];
-      return `<div class="pc-cleanup-group">
-        <div class="pc-cleanup-title"><div><strong>${esc(group.target?.name || '–')}</strong><div class="pc-cleanup-names">← ${sources.map(source => esc(source.name)).join(' · ')}</div><div class="pc-cleanup-names">${Number(group.totalDocuments || 0)} Dokumente · Ähnlichkeit ${Math.round(Number(group.confidence || 0) * 100)}%</div></div>
-        <button class="pc-btn pc-cleanup-merge" data-kind="${esc(kind)}" data-target="${esc(group.target?.id)}" data-sources="${esc(sources.map(source => source.id).join(','))}">Zusammenführen</button></div>
+    return `<div class="pc-cleanup-group"><strong>${esc(title)}</strong>${groups.map((group, index) => {
+      const candidates = [group.target, ...(group.sources || [])].filter(Boolean);
+      const groupKey = `pc-merge-${kind}-${Number(group.target?.id || index)}-${index}`;
+      const suggestedName = group.suggestedName || group.target?.name || '';
+      const reason = group.semanticReason ? `<div class="pc-cleanup-names">${esc(group.semanticReason)}</div>` : '';
+      return `<div class="pc-cleanup-item" data-kind="${esc(kind)}">
+        <div><strong>${group.semantic ? 'Semantische Gruppe' : 'Ähnliche Einträge'}</strong><div class="pc-cleanup-names">${Number(group.totalDocuments || 0)} Dokumente · Sicherheit ${Math.round(Number(group.confidence || 0) * 100)}%</div>${reason}</div>
+        <div class="pc-cleanup-options">
+          ${candidates.map(candidate => `<div class="pc-cleanup-option"><label><input type="radio" name="${esc(groupKey)}" value="${esc(candidate.id)}" ${Number(candidate.id) === Number(group.target?.id) ? 'checked' : ''}><span>${esc(candidate.name)}</span></label><small>${Number(candidate.documentCount || 0)} Dok.</small></div>`).join('')}
+        </div>
+        <label class="pc-cleanup-canonical">Kanonischer Name
+          <input class="pc-cleanup-target-name" type="text" maxlength="128" value="${esc(suggestedName)}" placeholder="z. B. Allgemeine Geschäftsbedingungen">
+        </label>
+        <div class="pc-actions"><button class="pc-btn pc-btn-primary pc-cleanup-merge" data-kind="${esc(kind)}" data-all-ids="${esc(candidates.map(candidate => candidate.id).join(','))}">Auswahl zusammenführen</button></div>
       </div>`;
     }).join('')}</div>`;
   }
@@ -293,7 +302,10 @@
     const root = q('pc-cleanup-results');
     if (!root) return;
     const counts = audit.counts || {};
-    root.innerHTML = `<div class="pc-cleanup-summary"><span class="pc-badge">Korrespondenten ${esc(counts.correspondents || 0)}</span><span class="pc-badge">Typen ${esc(counts.documentTypes || 0)}</span><span class="pc-badge">Tags ${esc(counts.tags || 0)}</span></div>
+    const semanticNote = audit.semantic
+      ? '<span class="pc-badge pc-ok"><span class="pc-dot"></span><span>Codex semantisch</span></span>'
+      : `<span class="pc-badge pc-warn"><span class="pc-dot"></span><span>Fallback: nur ähnlich${audit.semanticError ? ' · Codex-Fehler' : ''}</span></span>`;
+    root.innerHTML = `<div class="pc-cleanup-summary"><span class="pc-badge">Korrespondenten ${esc(counts.correspondents || 0)}</span><span class="pc-badge">Typen ${esc(counts.documentTypes || 0)}</span><span class="pc-badge">Tags ${esc(counts.tags || 0)}</span>${semanticNote}</div>
       ${cleanupSection('Korrespondenten', 'correspondent', audit.correspondents || [])}
       ${cleanupSection('Dokumenttypen', 'documentType', audit.documentTypes || [])}
       ${cleanupSection('Tags', 'tag', audit.tags || [])}`;
@@ -303,9 +315,9 @@
   async function loadMetadataAudit() {
     const button = q('pc-cleanup-scan');
     if (button) button.disabled = true;
-    setBadge('pc-cleanup-badge', 'warn', 'Prüft…');
+    setBadge('pc-cleanup-badge', 'warn', 'Codex prüft…');
     try {
-      const audit = await request('ui-api/assistant/metadata/audit', { timeout: 60000 });
+      const audit = await request('ui-api/assistant/metadata/audit', { timeout: 280000 });
       renderMetadataAudit(audit);
       const total = (audit.correspondents?.length || 0) + (audit.documentTypes?.length || 0) + (audit.tags?.length || 0);
       setBadge('pc-cleanup-badge', total ? 'warn' : 'ok', total ? `${total} Gruppen` : 'Sauber');
@@ -318,22 +330,34 @@
   }
 
   async function mergeMetadataGroup(button) {
+    const item = button.closest('.pc-cleanup-item');
+    if (!item) return;
     const kind = button.dataset.kind;
-    const targetId = Number(button.dataset.target);
-    const sourceIds = String(button.dataset.sources || '').split(',').map(Number).filter(Number.isInteger);
+    const allIds = String(button.dataset.allIds || '').split(',').map(Number).filter(Number.isInteger);
+    const targetId = Number(item.querySelector('input[type="radio"]:checked')?.value);
+    const sourceIds = allIds.filter(id => id !== targetId);
+    const targetName = String(item.querySelector('.pc-cleanup-target-name')?.value || '').trim();
     if (!targetId || !sourceIds.length) return;
+
+    const selectedName = item.querySelector('input[type="radio"]:checked')?.closest('label')?.textContent?.trim() || `#${targetId}`;
+    const finalName = targetName || selectedName;
     const label = cleanupKindLabel(kind);
-    if (!window.confirm(`${label}-Duplikate wirklich zusammenführen? Dokumente werden auf den Ziel-Eintrag umgestellt und die alten Einträge danach gelöscht.`)) return;
+    if (!window.confirm(`${label}-Gruppe wirklich zusammenführen?\n\nZiel: ${selectedName}\nKanonischer Name: ${finalName}\nZu entfernende Varianten: ${sourceIds.length}\n\nDokumente werden zuerst auf das Ziel umgestellt und erst danach werden die alten Einträge gelöscht.`)) return;
+
     button.disabled = true;
     button.textContent = 'Wird zusammengeführt…';
     try {
-      const result = await request('ui-api/assistant/metadata/merge', { method: 'POST', timeout: 180000, body: { kind, targetId, sourceIds, confirm: true } });
+      const result = await request('ui-api/assistant/metadata/merge', {
+        method: 'POST',
+        timeout: 180000,
+        body: { kind, targetId, sourceIds, targetName, confirm: true }
+      });
       if (!result.ok) showError('Dokumente wurden umgestellt, aber mindestens ein alter Metadaten-Eintrag konnte nicht gelöscht werden.');
       await loadMetadataAudit();
     } catch (error) {
       showError(error);
       button.disabled = false;
-      button.textContent = 'Zusammenführen';
+      button.textContent = 'Auswahl zusammenführen';
     }
   }
 
