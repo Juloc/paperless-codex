@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Paperless Codex
 // @namespace    https://github.com/Juloc/paperless-codex
-// @version      0.3.5
+// @version      0.3.6
 // @description  Integriert Paperless Codex direkt in die Paperless-ngx-Oberfläche.
 // @match        https://paperless.juloc.de/*
 // @match        https://www.paperless.juloc.de/*
@@ -101,7 +101,7 @@
       .pc-chat-log{min-height:190px;max-height:420px;overflow:auto;border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;padding:12px;background:var(--bs-body-bg,#fff)}
       .pc-chat-empty{color:var(--bs-secondary-color,#6c757d)}.pc-msg{max-width:88%;padding:9px 11px;border-radius:.7rem;margin:7px 0;white-space:pre-wrap;overflow-wrap:anywhere}.pc-msg-user{margin-left:auto;background:var(--bs-primary,#0d6efd);color:#fff}.pc-msg-assistant{background:var(--bs-secondary-bg,#e9ecef)}
       .pc-chat-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:10px;align-items:end}.pc-chat-form textarea{width:100%;min-height:76px;max-height:180px;resize:vertical;padding:9px 10px;border:1px solid var(--bs-border-color,#ced4da);border-radius:.375rem;background:var(--bs-body-bg,#fff);color:inherit}
-      .pc-cleanup-summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}.pc-cleanup-group{border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;padding:11px;margin-top:8px}.pc-cleanup-title{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.pc-cleanup-names{margin-top:6px;color:var(--bs-secondary-color,#6c757d)}.pc-cleanup-empty{color:var(--bs-secondary-color,#6c757d)}.pc-cleanup-item{border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;padding:12px;margin-top:10px}.pc-cleanup-options{display:grid;gap:6px;margin-top:10px}.pc-cleanup-option{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem}.pc-cleanup-option>label{display:flex;align-items:center;gap:8px;min-width:0;flex:1}.pc-cleanup-option small{color:var(--bs-secondary-color,#6c757d)}.pc-cleanup-canonical{margin-top:10px}.pc-cleanup-canonical input{width:100%;padding:8px 10px;margin-top:5px;border:1px solid var(--bs-border-color,#ced4da);border-radius:.375rem;background:var(--bs-body-bg,#fff);color:inherit}.pc-prune-list{display:grid;gap:6px;margin-top:10px}.pc-prune-entry{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem}.pc-prune-entry label{display:flex;align-items:center;gap:8px;min-width:0;flex:1}.pc-prune-entry small{color:var(--bs-secondary-color,#6c757d);text-align:right}.pc-prune-entry.pc-protected{opacity:.72}
+      .pc-cleanup-summary{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}.pc-cleanup-group{border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;padding:11px;margin-top:8px}.pc-cleanup-title{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.pc-cleanup-names{margin-top:6px;color:var(--bs-secondary-color,#6c757d)}.pc-cleanup-empty{color:var(--bs-secondary-color,#6c757d)}.pc-cleanup-item{border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem;padding:12px;margin-top:10px}.pc-cleanup-options{display:grid;gap:6px;margin-top:10px}.pc-cleanup-option{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem}.pc-cleanup-option>label{display:flex;align-items:center;gap:8px;min-width:0;flex:1}.pc-cleanup-option small{color:var(--bs-secondary-color,#6c757d)}.pc-merge-include{display:flex;align-items:center;gap:6px;font-size:.78rem;white-space:nowrap}.pc-cleanup-option.pc-excluded{opacity:.5}.pc-cleanup-split-hint{margin-top:8px;color:var(--bs-secondary-color,#6c757d);font-size:.82rem}.pc-cleanup-canonical{margin-top:10px}.pc-cleanup-canonical input{width:100%;padding:8px 10px;margin-top:5px;border:1px solid var(--bs-border-color,#ced4da);border-radius:.375rem;background:var(--bs-body-bg,#fff);color:inherit}.pc-prune-list{display:grid;gap:6px;margin-top:10px}.pc-prune-entry{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--bs-border-color,#dee2e6);border-radius:.375rem}.pc-prune-entry label{display:flex;align-items:center;gap:8px;min-width:0;flex:1}.pc-prune-entry small{color:var(--bs-secondary-color,#6c757d);text-align:right}.pc-prune-entry.pc-protected{opacity:.72}
       @media(max-width:800px){.pc-grid{grid-template-columns:1fr}.pc-card.pc-full{grid-column:auto}.pc-stats{grid-template-columns:repeat(2,1fr)}.pc-manual-form{grid-template-columns:1fr}#paperless-codex-panel{padding:14px}}
     `;
     document.head.appendChild(style);
@@ -339,13 +339,18 @@
       const reason = group.semanticReason ? `<div class="pc-cleanup-names">${esc(group.semanticReason)}</div>` : '';
       return `<div class="pc-cleanup-item" data-kind="${esc(kind)}">
         <div><strong>${group.semantic ? 'Semantische Gruppe' : 'Ähnliche Einträge'}</strong><div class="pc-cleanup-names">${Number(group.totalDocuments || 0)} Dokumente · Sicherheit ${Math.round(Number(group.confidence || 0) * 100)}%</div>${reason}</div>
+        <div class="pc-cleanup-split-hint">Nur Einträge mit Haken werden zusammengeführt. Ziel per Kreis auswählen. So kannst du eine zu große Gruppe direkt aufteilen.</div>
         <div class="pc-cleanup-options">
-          ${candidates.map(candidate => `<div class="pc-cleanup-option"><label><input type="radio" name="${esc(groupKey)}" value="${esc(candidate.id)}" ${Number(candidate.id) === Number(group.target?.id) ? 'checked' : ''}><span>${esc(candidate.name)}</span></label><small>${Number(candidate.documentCount || 0)} Dok.</small></div>`).join('')}
+          ${candidates.map(candidate => `<div class="pc-cleanup-option" data-candidate-id="${esc(candidate.id)}">
+            <label><input class="pc-merge-target" type="radio" name="${esc(groupKey)}" value="${esc(candidate.id)}" ${Number(candidate.id) === Number(group.target?.id) ? 'checked' : ''}><span>${esc(candidate.name)}</span></label>
+            <label class="pc-merge-include"><input class="pc-merge-include-box" type="checkbox" value="${esc(candidate.id)}" checked> einbeziehen</label>
+            <small>${Number(candidate.documentCount || 0)} Dok.</small>
+          </div>`).join('')}
         </div>
         <label class="pc-cleanup-canonical">Kanonischer Name
           <input class="pc-cleanup-target-name" type="text" maxlength="128" value="${esc(suggestedName)}" placeholder="z. B. Allgemeine Geschäftsbedingungen">
         </label>
-        <div class="pc-actions"><button class="pc-btn pc-btn-primary pc-cleanup-merge" data-kind="${esc(kind)}" data-all-ids="${esc(candidates.map(candidate => candidate.id).join(','))}">Auswahl zusammenführen</button></div>
+        <div class="pc-actions"><button class="pc-btn pc-btn-primary pc-cleanup-merge" data-kind="${esc(kind)}">Auswahl zusammenführen</button><button class="pc-btn pc-cleanup-hide" type="button">Gruppe ausblenden</button></div>
         <div class="pc-progress"><span class="pc-merge-progress"></span></div>
         <div class="pc-muted pc-merge-progress-text" style="text-align:left;margin-top:6px">Bereit.</div>
       </div>`;
@@ -364,6 +369,31 @@
       ${cleanupSection('Dokumenttypen', 'documentType', audit.documentTypes || [])}
       ${cleanupSection('Tags', 'tag', audit.tags || [])}`;
     root.querySelectorAll('.pc-cleanup-merge').forEach(button => button.addEventListener('click', () => mergeMetadataGroup(button)));
+    root.querySelectorAll('.pc-cleanup-hide').forEach(button => button.addEventListener('click', () => button.closest('.pc-cleanup-item')?.remove()));
+    root.querySelectorAll('.pc-cleanup-item').forEach(item => {
+      const sync = () => {
+        const included = [...item.querySelectorAll('.pc-merge-include-box')].filter(input => input.checked);
+        item.querySelectorAll('.pc-cleanup-option').forEach(row => {
+          const box = row.querySelector('.pc-merge-include-box');
+          const radio = row.querySelector('.pc-merge-target');
+          row.classList.toggle('pc-excluded', !box?.checked);
+          if (radio) radio.disabled = !box?.checked;
+        });
+        let selected = item.querySelector('.pc-merge-target:checked:not(:disabled)');
+        if (!selected && included.length) {
+          const firstId = included[0].value;
+          selected = [...item.querySelectorAll('.pc-merge-target')].find(radio => radio.value === firstId);
+          if (selected) selected.checked = true;
+        }
+        const mergeButton = item.querySelector('.pc-cleanup-merge');
+        if (mergeButton) {
+          mergeButton.disabled = included.length < 2;
+          mergeButton.textContent = included.length >= 2 ? `Auswahl zusammenführen (${included.length})` : 'Mindestens 2 auswählen';
+        }
+      };
+      item.querySelectorAll('.pc-merge-include-box').forEach(input => input.addEventListener('change', sync));
+      sync();
+    });
   }
 
   function renderOperationProgress(kind, state = {}) {
@@ -446,16 +476,22 @@
     const item = button.closest('.pc-cleanup-item');
     if (!item) return;
     const kind = button.dataset.kind;
-    const allIds = String(button.dataset.allIds || '').split(',').map(Number).filter(Number.isInteger);
-    const targetId = Number(item.querySelector('input[type="radio"]:checked')?.value);
-    const sourceIds = allIds.filter(id => id !== targetId);
+    const includedIds = [...item.querySelectorAll('.pc-merge-include-box:checked')].map(input => Number(input.value)).filter(Number.isInteger);
+    const targetId = Number(item.querySelector('.pc-merge-target:checked:not(:disabled)')?.value);
+    const sourceIds = includedIds.filter(id => id !== targetId);
     const targetName = String(item.querySelector('.pc-cleanup-target-name')?.value || '').trim();
-    if (!targetId || !sourceIds.length) return;
 
-    const selectedName = item.querySelector('input[type="radio"]:checked')?.closest('label')?.textContent?.trim() || `#${targetId}`;
+    if (!targetId || includedIds.length < 2 || !sourceIds.length) {
+      showError('Bitte mindestens zwei Einträge auswählen und innerhalb dieser Auswahl ein Ziel festlegen.');
+      return;
+    }
+
+    const selectedRow = item.querySelector(`.pc-cleanup-option[data-candidate-id="${CSS.escape(String(targetId))}"]`);
+    const selectedName = selectedRow?.querySelector('span')?.textContent?.trim() || `#${targetId}`;
     const finalName = targetName || selectedName;
     const label = cleanupKindLabel(kind);
-    if (!window.confirm(`${label}-Gruppe wirklich zusammenführen?\n\nZiel: ${selectedName}\nKanonischer Name: ${finalName}\nZu entfernende Varianten: ${sourceIds.length}\n\nPaperless stellt die Metadaten per Bulk-Edit um. Dateinamen und Index werden anschließend im Hintergrund aktualisiert.`)) return;
+    const excludedCount = item.querySelectorAll('.pc-merge-include-box:not(:checked)').length;
+    if (!window.confirm(`${label}-Auswahl wirklich zusammenführen?\n\nZiel: ${selectedName}\nKanonischer Name: ${finalName}\nEinbezogen: ${includedIds.length}\nNicht einbezogen: ${excludedCount}\n\nNur die angehakten Einträge werden verändert.`)) return;
 
     const controls = [...item.querySelectorAll('input,button')];
     controls.forEach(control => { control.disabled = true; });
@@ -483,12 +519,28 @@
         percent: 100,
         current: Number(result.movedDocuments || 0),
         total: Number(result.movedDocuments || 0),
-        detail: `${Number(result.movedDocuments || 0)} Dokument(e) umgestellt${result.backgroundUpdatesQueued ? ' · Paperless verarbeitet Dateinamen/Index im Hintergrund' : ''}`
+        detail: `${Number(result.movedDocuments || 0)} Dokument(e) umgestellt · nur ausgewählte Teilgruppe`
       });
 
-      button.textContent = result.ok ? 'Zusammengeführt ✓' : 'Teilweise fertig';
-      item.style.opacity = result.ok ? '0.68' : '1';
-      setBadge('pc-cleanup-badge', 'warn', 'Geändert · neu prüfen');
+      for (const sourceId of sourceIds) {
+        item.querySelector(`.pc-cleanup-option[data-candidate-id="${CSS.escape(String(sourceId))}"]`)?.remove();
+      }
+      const targetRow = item.querySelector(`.pc-cleanup-option[data-candidate-id="${CSS.escape(String(result.target?.id || targetId))}"]`);
+      targetRow?.querySelector('.pc-merge-include-box')?.setAttribute('checked', 'checked');
+
+      const remainingRows = [...item.querySelectorAll('.pc-cleanup-option')];
+      controls.forEach(control => { control.disabled = false; });
+      remainingRows.forEach(row => {
+        const box = row.querySelector('.pc-merge-include-box');
+        const radio = row.querySelector('.pc-merge-target');
+        if (box) box.checked = true;
+        if (radio) radio.disabled = false;
+      });
+      if (targetRow?.querySelector('.pc-merge-target')) targetRow.querySelector('.pc-merge-target').checked = true;
+
+      button.textContent = remainingRows.length >= 2 ? `Weitere Auswahl zusammenführen (${remainingRows.length})` : 'Teilgruppe fertig ✓';
+      button.disabled = remainingRows.length < 2;
+      setBadge('pc-cleanup-badge', 'warn', 'Teilgruppe geändert');
     } catch (error) {
       showError(error);
       renderMergeProgress(item, { phase: 'Fehler', percent: 100, detail: String(error.message || error) });
