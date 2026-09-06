@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Image tag, for example 0.2.3
+        description: Image tag, for example 0.2.4
         required: true
-        default: 0.2.3
+        default: 0.2.4
 
 
 
