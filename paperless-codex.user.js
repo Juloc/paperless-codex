@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Paperless Codex
 // @namespace    https://github.com/Juloc/paperless-codex
-// @version      0.3.4
+// @version      0.3.5
 // @description  Integriert Paperless Codex direkt in die Paperless-ngx-Oberfläche.
 // @match        https://paperless.juloc.de/*
 // @match        https://www.paperless.juloc.de/*
@@ -202,45 +202,65 @@
 
   function renderBulk(b = {}, systemStatus = {}, jobsData = {}) {
     const status = b.status || 'idle';
-    const active = status === 'running', paused = status === 'paused';
-    const queued = Number(systemStatus.queued || 0);
-    const restoredQueue = status === 'idle' && Boolean(systemStatus.active) && queued > 0;
+    const pendingQueue = Number(b.pendingQueue ?? jobsData.queueTotal ?? systemStatus.queued ?? 0);
+    const active = status === 'running' && pendingQueue > 0;
+    const paused = status === 'paused' && pendingQueue > 0;
+    const restored = Boolean(b.restored);
     const jobs = Array.isArray(jobsData.jobs) ? jobsData.jobs : [];
-    const liveJob = jobs.slice().reverse().find(job => ['processing', 'retrying', 'waiting-paperless', 'waiting-usage-limit'].includes(String(job.status || '')));
+    const liveJob = jobs.find(job => ['processing', 'retrying', 'waiting-paperless', 'waiting-usage-limit'].includes(String(job.status || '')));
 
-    if (restoredQueue) {
-      setBadge('pc-bulk-badge', 'warn', 'Queue wird fortgesetzt');
-      q('pc-progress').style.width = '0%';
-      q('pc-progress-text').textContent = `Fortgesetzte Queue nach Neustart · ${queued} Dokument(e) verbleiben. Kein neuer Komplettscan wurde gestartet.`;
-      q('pc-bulk-current').textContent = liveJob?.documentId ? `#${liveJob.documentId}` : '–';
-      q('pc-done').textContent = '–';
-      q('pc-ok').textContent = '–';
-      q('pc-review').textContent = '–';
-      q('pc-fail').textContent = '–';
-      q('pc-skip-count').textContent = '–';
-      q('pc-bulk-start').disabled = true;
-      q('pc-bulk-pause').disabled = true;
-      q('pc-bulk-resume').disabled = true;
-      q('pc-bulk-cancel').disabled = true;
-      return;
+    const badgeText = restored && (active || paused)
+      ? (paused ? 'Fortgesetzte Queue pausiert' : 'Queue wird fortgesetzt')
+      : ({ idle: 'Bereit', running: 'Läuft', paused: 'Pausiert', completed: 'Fertig', cancelled: 'Abgebrochen' }[status] || status);
+    setBadge('pc-bulk-badge', active || paused ? 'warn' : status === 'completed' ? 'ok' : status === 'cancelled' ? 'bad' : '', badgeText);
+
+    const total = Number(b.total || 0);
+    const processed = Number(b.processed || 0);
+    const skipped = Number(b.skipped || 0);
+    const done = processed + skipped;
+    const pct = total ? Math.min(100, Math.round((done / total) * 100)) : 0;
+
+    q('pc-progress').style.width = `${pct}%`;
+    if (total) {
+      const prefix = restored && b.reconstructed ? 'Seit Wiederaufnahme' : (restored ? 'Fortgesetzter Scan' : 'Bulk-Scan');
+      const pauseText = paused ? ' · pausiert' : '';
+      q('pc-progress-text').textContent = `${prefix}: ${done} / ${total} · ${pct}% · ${pendingQueue} in Queue${pauseText}`;
+    } else if (pendingQueue) {
+      q('pc-progress-text').textContent = `${pendingQueue} Dokument(e) in der Queue${paused ? ' · pausiert' : ''}`;
+    } else {
+      q('pc-progress-text').textContent = 'Noch nicht gestartet.';
     }
 
-    setBadge('pc-bulk-badge', active || paused ? 'warn' : status === 'completed' ? 'ok' : status === 'cancelled' ? 'bad' : '', ({ idle: 'Bereit', running: 'Läuft', paused: 'Pausiert', completed: 'Fertig', cancelled: 'Abgebrochen' }[status] || status));
-    const total = Number(b.total || 0), processed = Number(b.processed || 0), skipped = Number(b.skipped || 0);
-    const pct = total ? Math.min(100, Math.round(((processed + skipped) / total) * 100)) : 0;
-    q('pc-progress').style.width = `${pct}%`;
-    q('pc-progress-text').textContent = total ? `${processed + skipped} / ${total} · ${pct}% · ${b.remaining ?? Math.max(0, total - processed - skipped)} verbleibend` : 'Noch nicht gestartet.';
     q('pc-bulk-current').textContent = b.currentDocumentId ? `#${b.currentDocumentId}` : (liveJob?.documentId ? `#${liveJob.documentId}` : '–');
-    q('pc-done').textContent = processed; q('pc-ok').textContent = b.completed || 0; q('pc-review').textContent = b.review || 0; q('pc-fail').textContent = b.failed || 0; q('pc-skip-count').textContent = skipped;
-    q('pc-bulk-start').disabled = active || paused; q('pc-bulk-pause').disabled = !active; q('pc-bulk-resume').disabled = !paused; q('pc-bulk-cancel').disabled = !(active || paused);
+    q('pc-done').textContent = processed;
+    q('pc-ok').textContent = b.completed || 0;
+    q('pc-review').textContent = b.review || 0;
+    q('pc-fail').textContent = b.failed || 0;
+    q('pc-skip-count').textContent = skipped;
+
+    q('pc-bulk-start').disabled = pendingQueue > 0 || active || paused;
+    q('pc-bulk-pause').disabled = !active;
+    q('pc-bulk-resume').disabled = !paused;
+    q('pc-bulk-cancel').disabled = pendingQueue <= 0;
   }
 
   function renderJobs(data = {}) {
-    const jobs = Array.isArray(data.jobs) ? data.jobs.slice(-12).reverse() : [];
+    const jobs = Array.isArray(data.jobs) ? data.jobs.slice(0, 30) : [];
     const table = q('pc-jobs'), empty = q('pc-jobs-empty'), tbody = table.querySelector('tbody');
-    if (!jobs.length) { table.hidden = true; empty.hidden = false; return; }
-    empty.hidden = true; table.hidden = false;
-    tbody.innerHTML = jobs.map(job => `<tr><td>#${esc(job.documentId)}</td><td>${esc(job.status || '–')}</td><td>${esc(job.attempt || 0)}</td><td>${esc(job.source || (job.bulk ? 'bulk' : 'manuell'))}</td></tr>`).join('');
+    const total = Number(data.queueTotal ?? data.queue?.length ?? 0);
+    if (!jobs.length) {
+      table.hidden = true;
+      empty.hidden = false;
+      empty.textContent = total ? `${total} Dokument(e) in Queue, Details werden geladen…` : 'Keine Jobs.';
+      return;
+    }
+    empty.hidden = false;
+    empty.textContent = total > jobs.length ? `Zeige ${jobs.length} Einträge · ${total} Dokument(e) insgesamt in der Queue.` : `${total} Dokument(e) in der Queue.`;
+    table.hidden = false;
+    tbody.innerHTML = jobs.map(job => {
+      const status = ({ queued: 'wartet', processing: 'läuft', paused: 'pausiert', completed: 'fertig', failed: 'fehler', retrying: 'retry', 'waiting-paperless': 'wartet auf Paperless', 'waiting-usage-limit': 'wartet auf Limit', cancelled: 'abgebrochen' })[job.status] || job.status || '–';
+      return `<tr><td>#${esc(job.documentId)}</td><td>${esc(status)}</td><td>${esc(job.attempt || 0)}</td><td>${esc(job.source || (job.bulk ? 'bulk' : 'manuell'))}</td></tr>`;
+    }).join('');
   }
 
   function renderProvenance(provenance = {}) {
@@ -694,10 +714,13 @@
     q('pc-prune-select-all').onclick = selectAllUnusedSafe;
     q('pc-prune-run').onclick = pruneUnusedSelected;
     q('pc-document-id').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); rescanDocument(); } });
-    q('pc-bulk-start').onclick = async () => { try { renderBulk(await request('ui-api/bulk/start', { method: 'POST', body: { skipCurrent: q('pc-skip').checked } })); } catch (e) { showError(e); } };
-    q('pc-bulk-pause').onclick = async () => { try { renderBulk(await request('ui-api/bulk/pause', { method: 'POST', body: {} })); } catch (e) { showError(e); } };
-    q('pc-bulk-resume').onclick = async () => { try { renderBulk(await request('ui-api/bulk/resume', { method: 'POST', body: {} })); } catch (e) { showError(e); } };
-    q('pc-bulk-cancel').onclick = async () => { try { renderBulk(await request('ui-api/bulk/cancel', { method: 'POST', body: {} })); } catch (e) { showError(e); } };
+    q('pc-bulk-start').onclick = async () => { try { await request('ui-api/bulk/start', { method: 'POST', body: { skipCurrent: q('pc-skip').checked } }); await refresh(); } catch (e) { showError(e); } };
+    q('pc-bulk-pause').onclick = async () => { try { await request('ui-api/bulk/pause', { method: 'POST', body: {} }); await refresh(); } catch (e) { showError(e); } };
+    q('pc-bulk-resume').onclick = async () => { try { await request('ui-api/bulk/resume', { method: 'POST', body: {} }); await refresh(); } catch (e) { showError(e); } };
+    q('pc-bulk-cancel').onclick = async () => {
+      if (!window.confirm('Aktuelle Scan-Queue wirklich abbrechen? Das gerade laufende Dokument darf noch fertig werden; alle übrigen Dokumente dieses Scan-Laufs werden aus der Queue entfernt.')) return;
+      try { await request('ui-api/bulk/cancel', { method: 'POST', body: {} }); await refresh(); } catch (e) { showError(e); }
+    };
     if (getBaseUrl()) q('pc-url').value = getBaseUrl(); else q('pc-url').value = DEFAULT_URL;
     const currentId = currentPaperlessDocumentId(); if (currentId) q('pc-document-id').value = String(currentId);
   }
