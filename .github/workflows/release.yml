@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Image tag, for example 0.1.8
+        description: Image tag, for example 0.2.0
         required: true
-        default: 0.1.8
+        default: 0.2.0
 
 
 permissions:
