@@ -1,0 +1,28 @@
+name: Patch userscript v0.3.8
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .patch-userscript-v038
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - run: node patch-userscript-v038.mjs
+      - run: node --check paperless-codex.user.js
+      - name: Commit userscript
+        run: |
+          git config user.name "paperless-codex release bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add paperless-codex.user.js
+          git commit -m "feat: add explicit manual full OCR scan action"
+          git push origin main
