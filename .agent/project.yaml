@@ -1,0 +1,17 @@
+project: paperless-codex
+repository: Juloc/paperless-codex
+coordination:
+  repository: Juloc/agent-control
+  issue: 1
+  hubUrl: null
+relatedRepositories:
+  - Juloc/docker
+validation:
+  - Validate changed Node/JavaScript files and relevant Docker configuration before completion.
+protectedPaths:
+  - .github/workflows/**
+  - .env.example
+notes:
+  - Never commit Paperless, Codex or bridge credentials.
+  - Keep Codex document processing sandboxed with shell access disabled.
+  - GitHub Issues hold active backlog/task state; README describes durable product and operational behavior.
