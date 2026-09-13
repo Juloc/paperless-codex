@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Paperless Codex
 // @namespace    https://github.com/Juloc/paperless-codex
-// @version      0.3.7
+// @version      0.3.8
 // @description  Integriert Paperless Codex direkt in die Paperless-ngx-Oberfläche.
 // @match        https://paperless.juloc.de/*
 // @match        https://www.paperless.juloc.de/*
@@ -155,8 +155,8 @@
             <div id="pc-prune-results" style="margin-top:12px"><div class="pc-cleanup-empty">Noch keine Prüfung durchgeführt.</div></div>
           </div></div>
           <div class="pc-card pc-full pc-manual"><div class="pc-card-h"><span>Dokument erneut scannen</span><span class="pc-badge" id="pc-manual-badge"><span class="pc-dot"></span><span>Bereit</span></span></div><div class="pc-card-b">
-            <div class="pc-manual-form"><label for="pc-document-id">Dokument-ID<input id="pc-document-id" type="number" min="1" step="1" inputmode="numeric" placeholder="z. B. 123"></label><button class="pc-btn pc-btn-primary" id="pc-rescan">Erneut scannen</button></div>
-            <div class="pc-muted pc-manual-result" id="pc-manual-result">Öffnest du Codex auf einer Dokumentseite, wird die ID automatisch übernommen.</div>
+            <div class="pc-manual-form"><label for="pc-document-id">Dokument-ID<input id="pc-document-id" type="number" min="1" step="1" inputmode="numeric" placeholder="z. B. 123"></label><div class="pc-actions" style="margin-top:0"><button class="pc-btn pc-btn-primary" id="pc-rescan">Smart erneut scannen</button><button class="pc-btn" id="pc-fullscan">Vollständiger OCR-Scan</button></div></div>
+            <div class="pc-muted pc-manual-result" id="pc-manual-result">Smart: Metadaten mit Luna, lokalem PDF-Text/Tesseract und wenigen Seiten; bestehender OCR-Text bleibt erhalten. Vollständiger OCR-Scan: alle Seiten, deutlich teurer, OCR darf validiert ersetzt werden.</div>
           </div>
           <div class="pc-card pc-full"><div class="pc-card-h"><span>Alle bestehenden Dokumente scannen</span><span class="pc-badge" id="pc-bulk-badge"><span class="pc-dot"></span><span>Bereit</span></span></div><div class="pc-card-b">
             <div class="pc-row"><span>Reihenfolge</span><span class="pc-muted">Neueste zuerst</span></div><div class="pc-row"><span>Aktuell</span><span class="pc-muted" id="pc-bulk-current">–</span></div>
@@ -748,6 +748,35 @@
     }
   }
 
+  async function fullScanDocument() {
+    const documentId = Number(q('pc-document-id').value);
+    if (!Number.isInteger(documentId) || documentId <= 0) {
+      setBadge('pc-manual-badge', 'bad', 'Ungültige ID');
+      q('pc-manual-result').textContent = 'Bitte eine gültige Paperless-Dokument-ID eingeben.';
+      return;
+    }
+    if (!window.confirm(`Dokument #${documentId} wirklich vollständig per OCR scannen?\n\nDabei werden alle Seiten bis zum Vollscan-Limit analysiert. Das verbraucht deutlich mehr Codex-Kontingent als Smart Scan und kann den Paperless-OCR-Text nach Validierung ersetzen.`)) return;
+    const smartButton = q('pc-rescan');
+    const fullButton = q('pc-fullscan');
+    smartButton.disabled = true;
+    fullButton.disabled = true;
+    setBadge('pc-manual-badge', 'warn', 'Vollscan eingereiht');
+    q('pc-manual-result').textContent = `Dokument #${documentId} wird für vollständigen OCR-Scan eingereiht…`;
+    try {
+      const result = await request(`ui-api/documents/${documentId}/scan-full`, { method: 'POST', body: {} });
+      setBadge('pc-manual-badge', 'ok', 'Vollscan in Queue');
+      q('pc-manual-result').textContent = `Dokument #${result.documentId || documentId} wurde als vollständiger OCR-Scan zur Queue hinzugefügt.`;
+      await refresh();
+    } catch (error) {
+      setBadge('pc-manual-badge', 'bad', 'Fehler');
+      q('pc-manual-result').textContent = String(error.message || error);
+      showError(error);
+    } finally {
+      smartButton.disabled = false;
+      fullButton.disabled = false;
+    }
+  }
+
   function bindPanel(root) {
     q('pc-close').onclick = closePanel;
     q('pc-refresh').onclick = refresh;
@@ -761,6 +790,7 @@
     q('pc-auth-open').onclick = () => { const url = q('pc-auth-open').dataset.url; if (url) window.open(url, '_blank', 'noopener,noreferrer'); };
     q('pc-auth-copy').onclick = () => navigator.clipboard?.writeText(q('pc-auth-code').textContent || '');
     q('pc-rescan').onclick = rescanDocument;
+    q('pc-fullscan').onclick = fullScanDocument;
     q('pc-chat-send').onclick = () => sendAssistantChat();
     q('pc-chat-input').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendAssistantChat(); } });
     q('pc-chat-clean-correspondents').onclick = () => sendAssistantChat('Prüfe meine Korrespondenten auf Duplikate und erkläre mir die auffälligsten Gruppen.');
