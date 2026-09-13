@@ -154,7 +154,7 @@ const server = http.createServer(async (req, res) => {
     const allowed =
       (req.method === 'GET' && ['/status', '/metadata', '/jobs', '/bulk/status', '/assistant/metadata/audit', '/assistant/metadata/unused', '/assistant/metadata/progress'].includes(path)) ||
       (req.method === 'POST' && ['/auth/start', '/bulk/start', '/bulk/pause', '/bulk/resume', '/bulk/cancel', '/selftest', '/assistant/chat', '/assistant/metadata/merge', '/assistant/metadata/prune'].includes(path)) ||
-      (req.method === 'POST' && /^\/documents\/\d+\/scan$/.test(path)) ||
+      (req.method === 'POST' && /^\/documents\/\d+\/(?:scan|scan-full)$/.test(path)) ||
       (req.method === 'GET' && /^\/auth\/[0-9a-f-]+$/i.test(path));
     if (!allowed) return sendJson(res, 404, { error: 'UI API route not allowed.' });
     return proxy(req, res, path, true);
